@@ -1,0 +1,7 @@
+src/
+.vscode/
+tsconfig.json
+eslint.config.mjs
+**/*.map
+node_modules/
+.gitignore

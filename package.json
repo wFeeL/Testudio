@@ -1,0 +1,100 @@
+{
+  "name": "testudio",
+  "displayName": "Testudio++",
+  "description": "Дерево, запуск и правка тестов ctest в VS Code: кейсы tests/testdata и тесты C++",
+  "publisher": "wfeel",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wFeeL/Testudio.git"
+  },
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Testing"
+  ],
+  "activationEvents": [
+    "workspaceContains:CMakeLists.txt"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Testudio++",
+      "properties": {
+        "testudio.testdataPath": {
+          "type": "string",
+          "default": "tests/testdata",
+          "description": "Каталог с кейсами данных относительно корня рабочей области."
+        },
+        "testudio.buildDirectory": {
+          "type": "string",
+          "default": "build",
+          "description": "Каталог сборки для ctest и cmake --build относительно корня рабочей области."
+        },
+        "testudio.executablePath": {
+          "type": "string",
+          "default": "",
+          "description": "Тестируемая программа. Если путь не задан или файла нет, при первом запуске кейса откроется выбор файла."
+        },
+        "testudio.timeoutSeconds": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "description": "Таймаут запуска одного теста в секундах."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "testudio.build",
+        "title": "Собрать проект",
+        "category": "Testudio++"
+      },
+      {
+        "command": "testudio.selectExecutable",
+        "title": "Выбрать тестируемую программу",
+        "category": "Testudio++"
+      },
+      {
+        "command": "testudio.openCase",
+        "title": "Открыть карточку",
+        "category": "Testudio++"
+      },
+      {
+        "command": "testudio.newCase",
+        "title": "Новый кейс",
+        "category": "Testudio++"
+      }
+    ],
+    "menus": {
+      "testing/item/context": [
+        {
+          "command": "testudio.openCase",
+          "when": "controllerId == testudio && testId =~ /case:\\w+$/",
+          "group": "navigation"
+        },
+        {
+          "command": "testudio.newCase",
+          "when": "controllerId == testudio && testId =~ /group:data$/",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/vscode": "~1.100.0",
+    "@vscode/vsce": "^4",
+    "eslint": "^9",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.71"
+  }
+}
