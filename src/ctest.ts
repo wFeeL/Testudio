@@ -79,13 +79,21 @@ export async function runCommand(
   });
 }
 
-export async function listCtestTests(buildDir: string, ctestCommand: string): Promise<string[] | undefined> {
+export interface CtestList {
+  names: string[] | undefined;
+  missing: boolean;
+}
+
+export async function queryCtestTests(buildDir: string, ctestCommand: string): Promise<CtestList> {
   if (!fs.existsSync(buildDir)) {
-    return undefined;
+    return { names: undefined, missing: false };
   }
   const result = await runCommand(ctestCommand, ['--test-dir', buildDir, '--show-only=json-v1'], buildDir, 60);
-  if (result.missing || result.exitCode !== 0) {
-    return undefined;
+  if (result.missing) {
+    return { names: undefined, missing: true };
+  }
+  if (result.exitCode !== 0) {
+    return { names: undefined, missing: false };
   }
   try {
     const data = JSON.parse(result.output);
@@ -93,10 +101,15 @@ export async function listCtestTests(buildDir: string, ctestCommand: string): Pr
     for (const test of data.tests) {
       names.push(String(test.name));
     }
-    return names;
+    return { names: names, missing: false };
   } catch {
-    return undefined;
+    return { names: undefined, missing: false };
   }
+}
+
+export async function listCtestTests(buildDir: string, ctestCommand: string): Promise<string[] | undefined> {
+  const list = await queryCtestTests(buildDir, ctestCommand);
+  return list.names;
 }
 
 const PARAM_COMMENT = '  # ';
@@ -107,6 +120,10 @@ export function stripCtestComment(testName: string): string {
     return testName;
   }
   return testName.slice(0, index);
+}
+
+export function isNotBuiltStub(testName: string): boolean {
+  return stripCtestComment(testName).endsWith('_NOT_BUILT');
 }
 
 export function caseNameFromCtest(testName: string): string | undefined {
@@ -185,4 +202,12 @@ export async function buildProject(cmakeCommand: string, buildDir: string): Prom
     return { exitCode: null, output: 'каталог сборки не найден: ' + buildDir, missing: false };
   }
   return runCommand(cmakeCommand, ['--build', buildDir], buildDir, 600);
+}
+
+export async function configureProject(
+  cmakeCommand: string,
+  sourceDir: string,
+  buildDir: string
+): Promise<CommandResult> {
+  return runCommand(cmakeCommand, ['-S', sourceDir, '-B', buildDir], sourceDir, 600);
 }

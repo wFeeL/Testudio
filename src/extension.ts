@@ -3,30 +3,38 @@ import { confirmAndDeleteCase } from './caseDelete';
 import { registerCaseEditor } from './caseEditor';
 import { CasePanel } from './casePanel';
 import { CASE_VIEW_TYPE, caseUri } from './caseUri';
-import { buildProject } from './ctest';
+import { CommandResult, buildProject, configureProject } from './ctest';
 import { killAllProcesses } from './processes';
-import { chooseExecutable, readSettings } from './settings';
+import { Settings, chooseExecutable, readSettings } from './settings';
 import { CASE_PREFIX, TestTree } from './testTree';
 import { findTool, missingToolMessage } from './tools';
 
 const REFRESH_DELAY_MS = 300;
 const SHOW_OUTPUT = 'Показать вывод';
 
-async function runBuild(tree: TestTree, output: vscode.OutputChannel): Promise<void> {
+function readSettingsOrWarn(action: string): Settings | undefined {
   const settings = readSettings();
   if (settings === undefined) {
-    vscode.window.showErrorMessage('Откройте папку проекта, чтобы собрать его.');
-    return;
+    vscode.window.showErrorMessage('Откройте папку проекта, чтобы ' + action + ' его.');
   }
+  return settings;
+}
 
+async function runCmake(
+  settings: Settings,
+  output: vscode.OutputChannel,
+  title: string,
+  name: string,
+  start: (cmakeCommand: string) => Promise<CommandResult>
+): Promise<boolean> {
   const result = await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: 'Testudio++: сборка проекта'
+      title: title
     },
     async function () {
       const cmakeCommand = await findTool('cmake', settings.cmakePath);
-      return buildProject(cmakeCommand, settings.buildDir);
+      return start(cmakeCommand);
     }
   );
 
@@ -34,20 +42,71 @@ async function runBuild(tree: TestTree, output: vscode.OutputChannel): Promise<v
   output.appendLine(result.output);
 
   if (result.exitCode === 0) {
-    await tree.refresh();
-    vscode.window.showInformationMessage('Сборка завершена.');
-    return;
+    return true;
   }
 
-  let text = 'Сборка не удалась, код возврата ' + result.exitCode + '.';
+  let text = name + ' не удалась, код возврата ' + result.exitCode + '.';
   if (result.missing) {
     text = missingToolMessage('cmake', 'testudio.cmakePath', settings.cmakePath);
   } else if (result.exitCode === null) {
-    text = 'Сборка не запущена: ' + result.output;
+    text = name + ' не запущена: ' + result.output;
   }
   const choice = await vscode.window.showErrorMessage(text, SHOW_OUTPUT);
   if (choice === SHOW_OUTPUT) {
     output.show();
+  }
+  return false;
+}
+
+async function configureStep(settings: Settings, output: vscode.OutputChannel): Promise<boolean> {
+  return runCmake(settings, output, 'Testudio++: настройка проекта', 'Настройка', function (cmakeCommand: string) {
+    return configureProject(cmakeCommand, settings.workspaceRoot, settings.buildDir);
+  });
+}
+
+async function buildStep(settings: Settings, output: vscode.OutputChannel): Promise<boolean> {
+  return runCmake(settings, output, 'Testudio++: сборка проекта', 'Сборка', function (cmakeCommand: string) {
+    return buildProject(cmakeCommand, settings.buildDir);
+  });
+}
+
+async function runConfigure(tree: TestTree, output: vscode.OutputChannel): Promise<void> {
+  const settings = readSettingsOrWarn('настроить');
+  if (settings === undefined) {
+    return;
+  }
+  const done = await configureStep(settings, output);
+  if (done) {
+    await tree.refresh();
+    vscode.window.showInformationMessage('Настройка завершена.');
+  }
+}
+
+async function runBuild(tree: TestTree, output: vscode.OutputChannel): Promise<void> {
+  const settings = readSettingsOrWarn('собрать');
+  if (settings === undefined) {
+    return;
+  }
+  const done = await buildStep(settings, output);
+  if (done) {
+    await tree.refresh();
+    vscode.window.showInformationMessage('Сборка завершена.');
+  }
+}
+
+async function runConfigureAndBuild(tree: TestTree, output: vscode.OutputChannel): Promise<void> {
+  const settings = readSettingsOrWarn('настроить и собрать');
+  if (settings === undefined) {
+    return;
+  }
+  const configured = await configureStep(settings, output);
+  if (!configured) {
+    return;
+  }
+  const built = await buildStep(settings, output);
+  if (built) {
+    await tree.refresh();
+    vscode.window.showInformationMessage('Настройка и сборка завершены.');
   }
 }
 
@@ -156,6 +215,16 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(controller);
   context.subscriptions.push(output);
+  context.subscriptions.push(
+    vscode.commands.registerCommand('testudio.configure', function (): Promise<void> {
+      return runConfigure(tree, output);
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('testudio.configureAndBuild', function (): Promise<void> {
+      return runConfigureAndBuild(tree, output);
+    })
+  );
   context.subscriptions.push(
     vscode.commands.registerCommand('testudio.build', function (): Promise<void> {
       return runBuild(tree, output);

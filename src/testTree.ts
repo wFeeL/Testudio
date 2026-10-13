@@ -1,10 +1,12 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { SHOW_LIMIT, showBytes, substituteDir } from './bytes';
 import { RunResult, runCase } from './caseRunner';
 import { caseUri } from './caseUri';
 import {
-  listCtestTests,
+  isNotBuiltStub,
+  queryCtestTests,
   runCtestTest,
   splitCtestTests,
   stripCtestComment,
@@ -23,6 +25,8 @@ const GROUP_CPP_ID = 'group:cpp';
 export const CASE_PREFIX = 'case:';
 const CPP_PREFIX = 'cpp:';
 const SUITE_PREFIX = 'suite:';
+const BUILD_BUTTON = 'Собрать';
+const CONFIGURE_AND_BUILD_BUTTON = 'Настроить и собрать';
 
 export function showLimited(data: Buffer): string {
   if (data.length <= SHOW_LIMIT) {
@@ -119,7 +123,20 @@ export class TestTree {
       return;
     }
     const ctestCommand = await findTool('ctest', settings.ctestPath);
-    const ctestNames = await listCtestTests(settings.buildDir, ctestCommand);
+    const listed = await queryCtestTests(settings.buildDir, ctestCommand);
+    let ctestNames = listed.names;
+    let hasStubs = false;
+    if (ctestNames !== undefined) {
+      const builtNames: string[] = [];
+      for (const name of ctestNames) {
+        if (isNotBuiltStub(name)) {
+          hasStubs = true;
+        } else {
+          builtNames.push(name);
+        }
+      }
+      ctestNames = builtNames;
+    }
 
     const caseNames: string[] = [];
     for (const testCase of cases) {
@@ -164,14 +181,19 @@ export class TestTree {
     }
     this.controller.items.replace(groups);
 
-    const warnCtest = ctestNames === undefined && (groups.length > 0 || fs.existsSync(settings.buildDir));
+    const buildExists = fs.existsSync(settings.buildDir);
+    const unavailable = ctestNames === undefined;
+    const brokenBuild = unavailable && !listed.missing && buildExists;
+    const warnCtest = unavailable && !brokenBuild && (groups.length > 0 || buildExists);
     if (warnCtest) {
       this.warnCtestUnavailable(settings.ctestPath);
     }
-    if (groups.length > 0) {
+    if (brokenBuild) {
+      this.showBrokenBuild(settings.buildDir);
+    } else if (groups.length > 0) {
       this.emptyShownFor = undefined;
     } else if (!warnCtest) {
-      this.showEmptyTree(settings.testdataDir, settings.buildDir);
+      this.showEmptyTree(settings.testdataDir, settings.buildDir, hasStubs);
     }
 
     if (this.refreshListener !== undefined) {
@@ -241,20 +263,44 @@ export class TestTree {
     vscode.window.showWarningMessage(text);
   }
 
-  private showEmptyTree(testdataDir: string, buildDir: string): void {
-    const key = testdataDir + '\n' + buildDir;
+  private async showBrokenBuild(buildDir: string): Promise<void> {
+    const key = 'broken\n' + buildDir;
     if (this.emptyShownFor === key) {
       return;
     }
     this.emptyShownFor = key;
-    vscode.window.showInformationMessage(
-      'Тесты не найдены: нет кейсов в ' +
-        testdataDir +
-        ', а ctest не нашёл тестов в ' +
-        buildDir +
-        '. Соберите проект: cmake --build ' +
-        buildDir
-    );
+
+    const text = 'Каталог сборки ' + buildDir + ' есть, но ctest не смог прочитать из него список тестов. Проект не настроен или сборка повреждена.';
+    const choice = await vscode.window.showInformationMessage(text, CONFIGURE_AND_BUILD_BUTTON);
+    if (choice === CONFIGURE_AND_BUILD_BUTTON) {
+      await vscode.commands.executeCommand('testudio.configureAndBuild');
+    }
+  }
+
+  private async showEmptyTree(testdataDir: string, buildDir: string, notBuilt: boolean): Promise<void> {
+    const configured = fs.existsSync(path.join(buildDir, 'CMakeCache.txt'));
+    const key = testdataDir + '\n' + buildDir + '\n' + configured + '\n' + notBuilt;
+    if (this.emptyShownFor === key) {
+      return;
+    }
+    this.emptyShownFor = key;
+
+    let text = 'Тесты не найдены: нет кейсов в ' + testdataDir + ', а ctest не нашёл тестов в ' + buildDir + '.';
+    if (notBuilt) {
+      text = 'Проект настроен, но тесты ещё не собраны.';
+    } else if (!fs.existsSync(buildDir)) {
+      text = 'Тесты не найдены: нет кейсов в ' + testdataDir + ', а каталога сборки ' + buildDir + ' нет.';
+    } else if (!configured) {
+      text = 'Тесты не найдены: нет кейсов в ' + testdataDir + ', а проект в ' + buildDir + ' не настроен.';
+    }
+    const needConfigure = !notBuilt && !configured;
+    const button = needConfigure ? CONFIGURE_AND_BUILD_BUTTON : BUILD_BUTTON;
+    const command = needConfigure ? 'testudio.configureAndBuild' : 'testudio.build';
+
+    const choice = await vscode.window.showInformationMessage(text, button);
+    if (choice === button) {
+      await vscode.commands.executeCommand(command);
+    }
   }
 
   private buildCppGroup(cppTests: string[]): vscode.TestItem {

@@ -76,6 +76,11 @@
     ],
     "commands": [
       {
+        "command": "testudio.configure",
+        "title": "Настроить проект",
+        "category": "Testudio++"
+      },
+      {
         "command": "testudio.build",
         "title": "Собрать проект",
         "category": "Testudio++"
