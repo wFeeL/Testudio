@@ -285,7 +285,7 @@ export class TestTree {
         }
         run.started(item);
         try {
-          await this.runLeaf(item, run, settings, executable);
+          await this.runLeaf(item, run, settings, executable, token);
         } catch (error) {
           run.errored(item, new vscode.TestMessage(describeError(error)));
         }
@@ -299,12 +299,13 @@ export class TestTree {
     item: vscode.TestItem,
     run: vscode.TestRun,
     settings: Settings,
-    executable: string | undefined
+    executable: string | undefined,
+    token: vscode.CancellationToken
   ): Promise<void> {
     if (item.id.startsWith(CASE_PREFIX)) {
-      await this.runDataCase(item, run, settings, executable);
+      await this.runDataCase(item, run, settings, executable, token);
     } else {
-      await this.runCppTest(item, run, settings);
+      await this.runCppTest(item, run, settings, token);
     }
   }
 
@@ -312,7 +313,8 @@ export class TestTree {
     item: vscode.TestItem,
     run: vscode.TestRun,
     settings: Settings,
-    executable: string | undefined
+    executable: string | undefined,
+    token: vscode.CancellationToken
   ): Promise<void> {
     const name = item.id.slice(CASE_PREFIX.length);
     const testCase = this.cases.get(name);
@@ -329,7 +331,11 @@ export class TestTree {
       return;
     }
 
-    const result = await runCase(testCase, executable, settings.workspaceRoot, settings.timeoutSeconds);
+    const result = await runCase(testCase, executable, settings.workspaceRoot, settings.timeoutSeconds, token);
+    if (token.isCancellationRequested) {
+      run.skipped(item);
+      return;
+    }
     this.results.set(name, result);
 
     if (result.passed) {
@@ -351,11 +357,20 @@ export class TestTree {
     }
   }
 
-  private async runCppTest(item: vscode.TestItem, run: vscode.TestRun, settings: Settings): Promise<void> {
+  private async runCppTest(
+    item: vscode.TestItem,
+    run: vscode.TestRun,
+    settings: Settings,
+    token: vscode.CancellationToken
+  ): Promise<void> {
     const testName = item.id.slice(CPP_PREFIX.length);
     const startedAt = Date.now();
-    const result = await runCtestTest(settings.buildDir, testName, settings.timeoutSeconds);
+    const result = await runCtestTest(settings.buildDir, testName, settings.timeoutSeconds, token);
     const duration = Date.now() - startedAt;
+    if (token.isCancellationRequested) {
+      run.skipped(item);
+      return;
+    }
 
     if (result.output !== '') {
       run.appendOutput(toTerminal(result.output), undefined, item);

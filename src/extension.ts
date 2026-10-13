@@ -4,6 +4,7 @@ import { registerCaseEditor } from './caseEditor';
 import { CasePanel } from './casePanel';
 import { CASE_VIEW_TYPE, caseUri } from './caseUri';
 import { buildProject } from './ctest';
+import { killAllProcesses } from './processes';
 import { chooseExecutable, readSettings } from './settings';
 import { CASE_PREFIX, TestTree } from './testTree';
 
@@ -205,4 +206,6 @@ export function activate(context: vscode.ExtensionContext): void {
   tree.refresh();
 }
 
-export function deactivate(): void {}
+export function deactivate(): void {
+  killAllProcesses();
+}

@@ -1,6 +1,8 @@
-import { ChildProcess, ChildProcessByStdio, spawn } from 'child_process';
+import { ChildProcessByStdio, spawn } from 'child_process';
 import { Readable } from 'stream';
+import * as vscode from 'vscode';
 import { substituteDir } from './bytes';
+import { killProcessTree, trackProcess } from './processes';
 import { TestCase } from './testCase';
 
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
@@ -51,22 +53,12 @@ function describeSpawnError(error: NodeJS.ErrnoException): string {
   return 'не удалось запустить программу: ' + code;
 }
 
-function killProcessTree(child: ChildProcess): void {
-  if (child.pid === undefined) {
-    return;
-  }
-  try {
-    process.kill(-child.pid, 'SIGKILL');
-  } catch {
-    child.kill('SIGKILL');
-  }
-}
-
 export async function runCase(
   testCase: TestCase,
   executable: string,
   workDir: string,
-  timeoutSeconds: number
+  timeoutSeconds: number,
+  token: vscode.CancellationToken
 ): Promise<RunResult> {
   if (testCase.problem !== undefined) {
     return makeResult(0, Buffer.alloc(0), testCase.problem);
@@ -93,6 +85,7 @@ export async function runCase(
       resolve(makeResult(Date.now() - startedAt, Buffer.alloc(0), message));
       return;
     }
+    trackProcess(child);
 
     const timer = setTimeout(function () {
       killProcessTree(child);
@@ -101,12 +94,18 @@ export async function runCase(
       finish(result);
     }, timeoutSeconds * 1000);
 
+    const cancelListener = token.onCancellationRequested(function () {
+      killProcessTree(child);
+      finish(makeResult(Date.now() - startedAt, Buffer.concat(chunks), 'прогон отменён'));
+    });
+
     function finish(result: RunResult): void {
       if (finished) {
         return;
       }
       finished = true;
       clearTimeout(timer);
+      cancelListener.dispose();
       resolve(result);
     }
 

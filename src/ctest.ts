@@ -1,5 +1,7 @@
 import { spawn } from 'child_process';
 import * as fs from 'fs';
+import * as vscode from 'vscode';
+import { killProcessTree, trackProcess } from './processes';
 
 export interface CommandResult {
   exitCode: number | null;
@@ -11,7 +13,8 @@ export async function runCommand(
   command: string,
   args: string[],
   cwd: string,
-  timeoutSeconds: number
+  timeoutSeconds: number,
+  token?: vscode.CancellationToken
 ): Promise<CommandResult> {
   return new Promise<CommandResult>(function (resolve) {
     const chunks: Buffer[] = [];
@@ -23,16 +26,30 @@ export async function runCommand(
       }
       finished = true;
       clearTimeout(timer);
+      if (cancelListener !== undefined) {
+        cancelListener.dispose();
+      }
       resolve(result);
     }
 
     const child = spawn(command, args, {
       cwd: cwd,
+      detached: true,
       stdio: ['ignore', 'pipe', 'pipe']
     });
+    trackProcess(child);
+
+    let cancelListener: vscode.Disposable | undefined;
+    if (token !== undefined) {
+      cancelListener = token.onCancellationRequested(function () {
+        killProcessTree(child);
+        const output = Buffer.concat(chunks).toString('utf8');
+        finish({ exitCode: null, output: output + '\nпрогон отменён', missing: false });
+      });
+    }
 
     const timer = setTimeout(function () {
-      child.kill('SIGKILL');
+      killProcessTree(child);
       const output = Buffer.concat(chunks).toString('utf8');
       finish({ exitCode: null, output: output + '\nпревышено ' + timeoutSeconds + ' с', missing: false });
     }, timeoutSeconds * 1000);
@@ -143,7 +160,8 @@ export function escapeRegex(text: string): string {
 export async function runCtestTest(
   buildDir: string,
   testName: string,
-  timeoutSeconds: number
+  timeoutSeconds: number,
+  token: vscode.CancellationToken
 ): Promise<CommandResult> {
   if (!fs.existsSync(buildDir)) {
     return { exitCode: null, output: 'каталог сборки не найден: ' + buildDir, missing: false };
@@ -157,7 +175,7 @@ export async function runCtestTest(
     '--timeout',
     String(timeoutSeconds)
   ];
-  return runCommand('ctest', args, buildDir, timeoutSeconds + 30);
+  return runCommand('ctest', args, buildDir, timeoutSeconds + 30, token);
 }
 
 export async function buildProject(buildDir: string): Promise<CommandResult> {
