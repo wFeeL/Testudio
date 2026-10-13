@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-export const CASE_SCHEME = 'testudio-case';
+const CASE_SCHEME = 'testudio-case';
 export const CASE_VIEW_TYPE = 'testudio.caseCard';
 const CASE_SUFFIX = '.testudiocase';
 

@@ -21,11 +21,11 @@ export interface TestCase {
 const ARGS_FILE = 'args.txt';
 export const EXPECTED_FILE = 'expected.txt';
 
-export function isValidCaseName(name: string): boolean {
+function isValidCaseName(name: string): boolean {
   return /^[A-Za-z0-9_]+$/.test(name);
 }
 
-export function parseArgs(text: string): string[] {
+function parseArgs(text: string): string[] {
   const args: string[] = [];
   for (const line of text.split('\n')) {
     const arg = line.endsWith('\r') ? line.slice(0, -1) : line;
@@ -36,7 +36,7 @@ export function parseArgs(text: string): string[] {
   return args;
 }
 
-export function formatArgs(args: string[]): string {
+function formatArgs(args: string[]): string {
   let text = '';
   for (const arg of args) {
     text += arg + '\n';
@@ -71,7 +71,7 @@ function compareNames(a: string, b: string): number {
   return 0;
 }
 
-export async function readCase(folder: string): Promise<TestCase> {
+async function readCase(folder: string): Promise<TestCase> {
   const name = path.basename(folder);
   const entries = await fs.readdir(folder, { withFileTypes: true });
   const fileNames: string[] = [];

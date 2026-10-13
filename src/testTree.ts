@@ -18,8 +18,8 @@ import { TestCase, listCases } from './testCase';
 import { TestSource, findTestSources, gtestNameFromCtest } from './testSource';
 import { findTool, missingToolMessage } from './tools';
 
-export type ResultListener = (caseName: string, result: RunResult) => void;
-export type RefreshListener = () => void;
+type ResultListener = (caseName: string, result: RunResult) => void;
+type RefreshListener = () => void;
 
 const GROUP_DATA_ID = 'group:data';
 const GROUP_CPP_ID = 'group:cpp';

@@ -9,7 +9,7 @@ export interface CommandResult {
   missing: boolean;
 }
 
-export async function runCommand(
+async function runCommand(
   command: string,
   args: string[],
   cwd: string,
@@ -79,7 +79,7 @@ export async function runCommand(
   });
 }
 
-export interface CtestList {
+interface CtestList {
   names: string[] | undefined;
   missing: boolean;
 }
@@ -107,11 +107,6 @@ export async function queryCtestTests(buildDir: string, ctestCommand: string): P
   }
 }
 
-export async function listCtestTests(buildDir: string, ctestCommand: string): Promise<string[] | undefined> {
-  const list = await queryCtestTests(buildDir, ctestCommand);
-  return list.names;
-}
-
 const PARAM_COMMENT = '  # ';
 
 export function stripCtestComment(testName: string): string {
@@ -126,7 +121,7 @@ export function isNotBuiltStub(testName: string): boolean {
   return stripCtestComment(testName).endsWith('_NOT_BUILT');
 }
 
-export function caseNameFromCtest(testName: string): string | undefined {
+function caseNameFromCtest(testName: string): string | undefined {
   const shortName = stripCtestComment(testName);
   const slash = shortName.lastIndexOf('/');
   if (slash < 0) {
@@ -170,7 +165,7 @@ export function suiteNameFromCtest(testName: string): string {
   return shortName.slice(0, dot);
 }
 
-export function escapeRegex(text: string): string {
+function escapeRegex(text: string): string {
   return text.replace(/[\\^$.|?*+()[\]{}]/g, '\\$&');
 }
 

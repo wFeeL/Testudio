@@ -91,7 +91,7 @@ export function showBytes(data: Buffer): string {
   return result;
 }
 
-export function replaceAllBytes(data: Buffer, from: Buffer, to: Buffer): Buffer {
+function replaceAllBytes(data: Buffer, from: Buffer, to: Buffer): Buffer {
   if (from.length === 0) {
     return data;
   }

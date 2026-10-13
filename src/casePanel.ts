@@ -22,15 +22,15 @@ import {
 } from './testCase';
 import { TestTree, showLimited } from './testTree';
 
-export interface CardText {
+interface CardText {
   text: string;
   simple: boolean;
 }
 
-export type CardMode = 'view' | 'edit' | 'create';
-export type CardStatus = 'passed' | 'failed' | 'unknown';
+type CardMode = 'view' | 'edit' | 'create';
+type CardStatus = 'passed' | 'failed' | 'unknown';
 
-export interface CardData {
+interface CardData {
   mode: CardMode;
   name: string;
   status: CardStatus;
@@ -70,7 +70,7 @@ function toCardText(data: Buffer): CardText {
   return { text: showLimited(data), simple: false };
 }
 
-export function buildCardData(testCase: TestCase, result: RunResult | undefined): CardData {
+function buildCardData(testCase: TestCase, result: RunResult | undefined): CardData {
   const files: { name: string; content: CardText }[] = [];
   for (const file of testCase.inputFiles) {
     files.push({ name: file.name, content: toCardText(file.content) });
@@ -114,7 +114,7 @@ export function buildCardData(testCase: TestCase, result: RunResult | undefined)
   };
 }
 
-export function buildFormData(testCase: TestCase): CardData {
+function buildFormData(testCase: TestCase): CardData {
   const files: { name: string; content: CardText }[] = [];
   for (const file of testCase.inputFiles) {
     files.push({ name: file.name, content: toCardText(file.content) });
@@ -134,7 +134,7 @@ export function buildFormData(testCase: TestCase): CardData {
   };
 }
 
-export function buildNewData(name: string): CardData {
+function buildNewData(name: string): CardData {
   return {
     mode: 'create',
     name: name,
@@ -150,7 +150,7 @@ export function buildNewData(name: string): CardData {
   };
 }
 
-export function buildDraft(page: PageDraft, original: TestCase | undefined): CaseDraft {
+function buildDraft(page: PageDraft, original: TestCase | undefined): CaseDraft {
   const inputFiles: CaseFile[] = [];
   for (const file of page.files) {
     inputFiles.push({ name: file.name, content: Buffer.from(file.content, 'utf8') });
