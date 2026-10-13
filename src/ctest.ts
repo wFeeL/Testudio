@@ -22,7 +22,6 @@ export async function runCommand(
   return new Promise<CommandResult>(function (resolve) {
     const chunks: Buffer[] = [];
     let finished = false;
-    let timedOut = false;
 
     function finish(result: CommandResult): void {
       if (finished) {
@@ -39,16 +38,21 @@ export async function runCommand(
     });
 
     const timer = setTimeout(function () {
-      timedOut = true;
       child.kill('SIGKILL');
+      const output = Buffer.concat(chunks).toString('utf8');
+      finish({ exitCode: null, output: output + '\nпревышено ' + timeoutSeconds + ' с', missing: false });
     }, timeoutSeconds * 1000);
 
     child.stdout.on('data', function (chunk: Buffer) {
-      chunks.push(chunk);
+      if (!finished) {
+        chunks.push(chunk);
+      }
     });
 
     child.stderr.on('data', function (chunk: Buffer) {
-      chunks.push(chunk);
+      if (!finished) {
+        chunks.push(chunk);
+      }
     });
 
     child.on('error', function (error: NodeJS.ErrnoException) {
@@ -58,10 +62,7 @@ export async function runCommand(
     });
 
     child.on('close', function (code: number | null) {
-      let output = Buffer.concat(chunks).toString('utf8');
-      if (timedOut) {
-        output = output + '\nпревышено ' + timeoutSeconds + ' с';
-      }
+      const output = Buffer.concat(chunks).toString('utf8');
       finish({ exitCode: code, output: output, missing: false });
     });
   });
