@@ -141,7 +141,7 @@ export class TestTree {
         caseUri(testCase.name)
       );
       if (testCase.problem !== undefined) {
-        item.error = testCase.problem;
+        item.description = testCase.problem;
       }
       dataGroup.children.add(item);
       this.caseItems.set(testCase.name, item);

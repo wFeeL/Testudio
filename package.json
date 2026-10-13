@@ -97,22 +97,22 @@
       "testing/item/context": [
         {
           "command": "testudio.openCase",
-          "when": "controllerId == testudio && testId =~ /case:\\w+$/",
+          "when": "controllerId == testudio && testId =~ /^case:/",
           "group": "navigation"
         },
         {
           "command": "testudio.openCase",
-          "when": "controllerId == testudio && testId =~ /case:\\w+$/",
+          "when": "controllerId == testudio && testId =~ /^case:/",
           "group": "inline"
         },
         {
           "command": "testudio.deleteCase",
-          "when": "controllerId == testudio && testId =~ /case:\\w+$/",
+          "when": "controllerId == testudio && testId =~ /^case:/",
           "group": "modification"
         },
         {
           "command": "testudio.deleteCase",
-          "when": "controllerId == testudio && testId =~ /case:\\w+$/",
+          "when": "controllerId == testudio && testId =~ /^case:/",
           "group": "inline"
         },
         {
