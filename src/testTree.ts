@@ -15,6 +15,7 @@ import {
 import { describeError } from './errors';
 import { ensureExecutable, readSettings, Settings } from './settings';
 import { TestCase, listCases } from './testCase';
+import { TestSource, findTestSources, gtestNameFromCtest } from './testSource';
 import { findTool, missingToolMessage } from './tools';
 
 export type ResultListener = (caseName: string, result: RunResult) => void;
@@ -147,6 +148,10 @@ export class TestTree {
     if (ctestNames !== undefined) {
       cppTests = splitCtestTests(ctestNames, caseNames);
     }
+    let sources = new Map<string, TestSource>();
+    if (cppTests.length > 0) {
+      sources = await findTestSources(settings.workspaceRoot, settings.buildDir);
+    }
 
     this.cases.clear();
     this.caseItems.clear();
@@ -177,7 +182,7 @@ export class TestTree {
       groups.push(dataGroup);
     }
     if (cppTests.length > 0) {
-      groups.push(this.buildCppGroup(cppTests));
+      groups.push(this.buildCppGroup(cppTests, sources));
     }
     this.controller.items.replace(groups);
 
@@ -303,7 +308,7 @@ export class TestTree {
     }
   }
 
-  private buildCppGroup(cppTests: string[]): vscode.TestItem {
+  private buildCppGroup(cppTests: string[], sources: Map<string, TestSource>): vscode.TestItem {
     const group = this.controller.createTestItem(GROUP_CPP_ID, 'Тесты C++');
     const suites = new Map<string, vscode.TestItem>();
     for (const testName of cppTests) {
@@ -314,8 +319,18 @@ export class TestTree {
         suites.set(suiteName, suiteItem);
         group.children.add(suiteItem);
       }
-      const label = testLabel(stripCtestComment(testName), suiteName);
-      suiteItem.children.add(this.controller.createTestItem(CPP_PREFIX + testName, label));
+      const shortName = stripCtestComment(testName);
+      const label = testLabel(shortName, suiteName);
+      const source = sources.get(gtestNameFromCtest(shortName));
+      let fileUri: vscode.Uri | undefined;
+      if (source !== undefined) {
+        fileUri = vscode.Uri.file(source.file);
+      }
+      const testItem = this.controller.createTestItem(CPP_PREFIX + testName, label, fileUri);
+      if (source !== undefined) {
+        testItem.range = new vscode.Range(source.line - 1, 0, source.line - 1, 0);
+      }
+      suiteItem.children.add(testItem);
     }
     return group;
   }
