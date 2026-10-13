@@ -12,6 +12,7 @@ import { ensureExecutable, readSettings, Settings } from './settings';
 import { TestCase, listCases } from './testCase';
 
 export type ResultListener = (caseName: string, result: RunResult) => void;
+export type RefreshListener = () => void;
 
 const GROUP_DATA_ID = 'group:data';
 const GROUP_CPP_ID = 'group:cpp';
@@ -71,6 +72,7 @@ export class TestTree {
   private caseItems: Map<string, vscode.TestItem> = new Map<string, vscode.TestItem>();
   private results: Map<string, RunResult> = new Map<string, RunResult>();
   private listener: ResultListener | undefined;
+  private refreshListener: RefreshListener | undefined;
   private ctestMessageShown: boolean = false;
   private refreshCounter: number = 0;
 
@@ -168,6 +170,10 @@ export class TestTree {
       groups.push(this.buildCppGroup(cppTests));
     }
     this.controller.items.replace(groups);
+
+    if (this.refreshListener !== undefined) {
+      this.refreshListener();
+    }
   }
 
   getCase(name: string): TestCase | undefined {
@@ -206,8 +212,16 @@ export class TestTree {
     this.listener = listener;
   }
 
+  setRefreshListener(listener: RefreshListener | undefined): void {
+    this.refreshListener = listener;
+  }
+
   getLastResult(name: string): RunResult | undefined {
     return this.results.get(name);
+  }
+
+  forgetResult(name: string): void {
+    this.results.delete(name);
   }
 
   private warnCtestUnavailable(): void {

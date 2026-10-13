@@ -70,6 +70,9 @@ function makeHeader(data) {
   if (shouldShowAccept(data)) {
     buttons.appendChild(makeButton('Принять фактический вывод', 'accept'));
   }
+  buttons.appendChild(makeButton('Изменить', 'edit'));
+  buttons.appendChild(makeButton('Переименовать', 'rename'));
+  buttons.appendChild(makeButton('Удалить', 'delete'));
   section.appendChild(buttons);
   return section;
 }
@@ -136,7 +139,7 @@ function makeOutputs(data) {
   return columns;
 }
 
-function render(data) {
+function renderView(data) {
   root.textContent = '';
   root.appendChild(makeHeader(data));
   root.appendChild(makeArgs(data.args));
@@ -144,10 +147,199 @@ function render(data) {
   root.appendChild(makeOutputs(data));
 }
 
+let formError = null;
+let saveButton = null;
+let nameInput = null;
+let argsArea = null;
+let expectedArea = null;
+let fileList = null;
+let fileRows = [];
+
+function makeInput(value) {
+  const input = makeElement('input', 'field', '');
+  input.type = 'text';
+  input.value = value;
+  return input;
+}
+
+function countRows(text) {
+  const lines = text.split('\n').length;
+  if (lines < 3) {
+    return 3;
+  }
+  if (lines > 15) {
+    return 15;
+  }
+  return lines;
+}
+
+function makeArea(value) {
+  const area = makeElement('textarea', 'field area', '');
+  area.rows = countRows(value);
+  area.value = value;
+  area.spellcheck = false;
+  return area;
+}
+
+function makeReadOnly(content) {
+  const block = makeElement('div', '', '');
+  block.appendChild(makeElement('div', 'note', 'двоичный или с \\r, правка недоступна'));
+  if (content.text === '') {
+    block.appendChild(makeElement('div', 'muted', 'пусто'));
+    return block;
+  }
+  block.appendChild(makeElement('pre', 'code', content.text));
+  return block;
+}
+
+function removeFileRow(row) {
+  const kept = [];
+  for (const other of fileRows) {
+    if (other !== row) {
+      kept.push(other);
+    }
+  }
+  fileRows = kept;
+  row.box.remove();
+}
+
+function addFileRow(name, content) {
+  const box = makeElement('div', 'file-row', '');
+  const fileNameInput = makeInput(name);
+  fileNameInput.placeholder = 'имя файла';
+  const area = makeArea(content);
+  const row = { box: box, nameInput: fileNameInput, area: area };
+
+  const remove = makeElement('button', 'button button-secondary', 'Убрать');
+  remove.addEventListener('click', function () {
+    removeFileRow(row);
+  });
+
+  const head = makeElement('div', 'file-head', '');
+  head.appendChild(fileNameInput);
+  head.appendChild(remove);
+  box.appendChild(head);
+  box.appendChild(area);
+  fileList.appendChild(box);
+  fileRows.push(row);
+}
+
+function splitArgs(text) {
+  const lines = text.split('\n');
+  if (lines[lines.length - 1] === '') {
+    lines.pop();
+  }
+  return lines;
+}
+
+function collectDraft() {
+  const files = [];
+  for (const row of fileRows) {
+    files.push({ name: row.nameInput.value, content: row.area.value });
+  }
+  let expected = undefined;
+  if (expectedArea !== null) {
+    expected = expectedArea.value;
+  }
+  return {
+    name: nameInput.value,
+    args: splitArgs(argsArea.value),
+    expected: expected,
+    files: files
+  };
+}
+
+function showFormError(text) {
+  if (formError === null) {
+    return;
+  }
+  formError.textContent = text;
+  formError.scrollIntoView();
+  if (saveButton !== null) {
+    saveButton.disabled = false;
+  }
+}
+
+function makeFormButtons() {
+  const buttons = makeElement('div', 'buttons', '');
+  saveButton = makeElement('button', 'button', 'Сохранить');
+  saveButton.addEventListener('click', function () {
+    formError.textContent = '';
+    saveButton.disabled = true;
+    vscode.postMessage({ type: 'save', draft: collectDraft() });
+  });
+  buttons.appendChild(saveButton);
+  buttons.appendChild(makeButton('Отмена', 'cancel'));
+  return buttons;
+}
+
+function renderForm(data) {
+  root.textContent = '';
+  fileRows = [];
+  expectedArea = null;
+
+  let title = 'Правка кейса ' + data.name;
+  if (data.mode === 'create') {
+    title = 'Новый кейс';
+  }
+  root.appendChild(makeElement('h1', '', title));
+  formError = makeElement('div', 'error', '');
+  root.appendChild(formError);
+
+  root.appendChild(makeElement('h2', '', 'Имя'));
+  root.appendChild(makeElement('div', 'note', 'латинские буквы, цифры и _'));
+  nameInput = makeInput(data.name);
+  root.appendChild(nameInput);
+
+  root.appendChild(makeElement('h2', '', 'Аргументы'));
+  root.appendChild(makeElement('div', 'note', 'по одному на строку, пустая строка недопустима, {dir} подставит папку кейса'));
+  argsArea = makeArea(data.args.join('\n'));
+  root.appendChild(argsArea);
+
+  root.appendChild(makeElement('h2', '', 'Входные файлы'));
+  fileList = makeElement('div', '', '');
+  root.appendChild(fileList);
+  for (const file of data.files) {
+    if (file.content.simple) {
+      addFileRow(file.name, file.content.text);
+    } else {
+      fileList.appendChild(makeElement('div', 'file-name', file.name));
+      fileList.appendChild(makeReadOnly(file.content));
+    }
+  }
+  const addButton = makeElement('button', 'button button-secondary', 'Добавить файл');
+  addButton.addEventListener('click', function () {
+    addFileRow('', '');
+  });
+  const addBox = makeElement('div', 'buttons', '');
+  addBox.appendChild(addButton);
+  root.appendChild(addBox);
+
+  root.appendChild(makeElement('h2', '', 'Ожидаемый вывод'));
+  if (data.expected.simple) {
+    expectedArea = makeArea(data.expected.text);
+    root.appendChild(expectedArea);
+  } else {
+    root.appendChild(makeReadOnly(data.expected));
+  }
+
+  root.appendChild(makeFormButtons());
+}
+
+function render(data) {
+  if (data.mode === 'view') {
+    renderView(data);
+  } else {
+    renderForm(data);
+  }
+}
+
 window.addEventListener('message', function (event) {
   const message = event.data;
   if (message.type === 'show') {
     render(message.data);
+  } else if (message.type === 'error') {
+    showFormError(message.text);
   }
 });
 

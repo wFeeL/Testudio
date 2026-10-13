@@ -132,6 +132,53 @@ h2 {
   font-weight: 600;
 }
 
+.button-secondary {
+  background-color: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+}
+
+.button-secondary:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.field {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  background-color: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-family: var(--vscode-editor-font-family);
+  font-size: var(--vscode-editor-font-size);
+}
+
+.field:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+.area {
+  display: block;
+  resize: vertical;
+  white-space: pre;
+}
+
+.error {
+  margin: 8px 0;
+  color: var(--vscode-errorForeground);
+  font-weight: 600;
+  white-space: pre-wrap;
+}
+
+.file-row {
+  margin: 8px 0;
+}
+
+.file-head {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
 @media (max-width: 700px) {
   .columns {
     grid-template-columns: 1fr;

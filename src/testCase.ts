@@ -1,6 +1,7 @@
 import { Dirent } from 'fs';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { isSimpleText } from './bytes';
 
 export interface CaseFile {
   name: string;
@@ -127,4 +128,180 @@ export function nextCaseNumber(cases: TestCase[]): string {
     }
   }
   return String(max + 1).padStart(2, '0');
+}
+
+export interface CaseDraft {
+  name: string;
+  args: string[];
+  expected: Buffer;
+  inputFiles: CaseFile[];
+}
+
+const NEW_FOLDER_PREFIX = '.testudio-new-';
+
+async function pathExists(target: string): Promise<boolean> {
+  try {
+    await fs.stat(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function checkFileName(name: string, taken: string[]): string | undefined {
+  if (name === '') {
+    return 'Имя входного файла не может быть пустым.';
+  }
+  if (name.includes('/') || name === '.' || name === '..') {
+    return 'Недопустимое имя входного файла: ' + name;
+  }
+  const key = name.toLowerCase();
+  if (key === ARGS_FILE || key === EXPECTED_FILE) {
+    return 'Имя ' + name + ' занято под служебный файл кейса.';
+  }
+  if (taken.includes(key)) {
+    return 'Имя входного файла ' + name + ' повторяется.';
+  }
+  taken.push(key);
+  return undefined;
+}
+
+export function checkDraft(
+  draft: CaseDraft,
+  existingNames: string[],
+  originalName: string | undefined
+): string | undefined {
+  if (!isValidCaseName(draft.name)) {
+    return 'Имя кейса: только латинские буквы, цифры и _, не пустое.';
+  }
+  if (draft.name !== originalName && existingNames.includes(draft.name)) {
+    return 'Кейс ' + draft.name + ' уже есть.';
+  }
+  for (const arg of draft.args) {
+    if (arg === '') {
+      return 'Пустой аргумент не допускается: уберите пустую строку.';
+    }
+    if (arg.includes('\n') || arg.includes('\r')) {
+      return 'Аргумент не может содержать перевод строки.';
+    }
+  }
+  const taken: string[] = [];
+  for (const file of draft.inputFiles) {
+    const problem = checkFileName(file.name, taken);
+    if (problem !== undefined) {
+      return problem;
+    }
+  }
+  return undefined;
+}
+
+async function writeCaseFiles(folder: string, draft: CaseDraft): Promise<void> {
+  await fs.writeFile(path.join(folder, ARGS_FILE), formatArgs(draft.args));
+  await fs.writeFile(path.join(folder, EXPECTED_FILE), draft.expected);
+  for (const file of draft.inputFiles) {
+    await fs.writeFile(path.join(folder, file.name), file.content);
+  }
+}
+
+export async function createCase(testdataDir: string, draft: CaseDraft): Promise<void> {
+  const problem = checkDraft(draft, [], undefined);
+  if (problem !== undefined) {
+    throw new Error(problem);
+  }
+  const root = path.resolve(testdataDir);
+  const target = path.join(root, draft.name);
+  if (await pathExists(target)) {
+    throw new Error('Кейс ' + draft.name + ' уже есть.');
+  }
+  const temp = path.join(path.dirname(root), NEW_FOLDER_PREFIX + draft.name);
+  await fs.rm(temp, { recursive: true, force: true });
+  try {
+    await fs.mkdir(temp, { recursive: true });
+    await writeCaseFiles(temp, draft);
+    await fs.mkdir(root, { recursive: true });
+    await fs.rename(temp, target);
+  } catch (error) {
+    await fs.rm(temp, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function sameArgs(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  for (let index = 0; index < a.length; index += 1) {
+    if (a[index] !== b[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function findFile(files: CaseFile[], name: string): CaseFile | undefined {
+  for (const file of files) {
+    if (file.name === name) {
+      return file;
+    }
+  }
+  return undefined;
+}
+
+export async function updateCase(testCase: TestCase, draft: CaseDraft): Promise<string> {
+  const problem = checkDraft(draft, [], testCase.name);
+  if (problem !== undefined) {
+    throw new Error(problem);
+  }
+  const renamed = draft.name !== testCase.name;
+  if (renamed && (await pathExists(path.join(path.dirname(testCase.folder), draft.name)))) {
+    throw new Error('Кейс ' + draft.name + ' уже есть.');
+  }
+
+  const draftNames: string[] = [];
+  for (const file of draft.inputFiles) {
+    draftNames.push(file.name);
+  }
+  for (const old of testCase.inputFiles) {
+    if (!draftNames.includes(old.name) && isSimpleText(old.content)) {
+      await fs.rm(path.join(testCase.folder, old.name));
+    }
+  }
+
+  const everything = testCase.problem !== undefined;
+  if (everything || !sameArgs(draft.args, testCase.args)) {
+    await fs.writeFile(path.join(testCase.folder, ARGS_FILE), formatArgs(draft.args));
+  }
+  if (everything || !draft.expected.equals(testCase.expected)) {
+    await fs.writeFile(path.join(testCase.folder, EXPECTED_FILE), draft.expected);
+  }
+  for (const file of draft.inputFiles) {
+    const old = findFile(testCase.inputFiles, file.name);
+    if (old === undefined || !old.content.equals(file.content)) {
+      await fs.writeFile(path.join(testCase.folder, file.name), file.content);
+    }
+  }
+
+  if (renamed) {
+    return renameCase(testCase.folder, draft.name);
+  }
+  return testCase.folder;
+}
+
+export async function deleteCase(folder: string): Promise<void> {
+  await fs.rm(folder, { recursive: true });
+}
+
+export async function renameCase(folder: string, newName: string): Promise<string> {
+  if (!isValidCaseName(newName)) {
+    throw new Error('Имя кейса: только латинские буквы, цифры и _, не пустое.');
+  }
+  const target = path.join(path.dirname(folder), newName);
+  if (target === folder) {
+    return folder;
+  }
+  if (await pathExists(target)) {
+    throw new Error('Кейс ' + newName + ' уже есть.');
+  }
+  await fs.rename(folder, target);
+  return target;
 }

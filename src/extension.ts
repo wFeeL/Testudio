@@ -139,6 +139,11 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
   context.subscriptions.push(
+    vscode.commands.registerCommand('testudio.newCase', function (): void {
+      CasePanel.showNew(context, tree);
+    })
+  );
+  context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(function (event: vscode.ConfigurationChangeEvent): void {
       if (event.affectsConfiguration('testudio')) {
         resetWatcher();
