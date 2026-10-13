@@ -74,7 +74,8 @@ export class TestTree {
   private listener: ResultListener | undefined;
   private refreshListener: RefreshListener | undefined;
   private ctestMessageShown: boolean = false;
-  private refreshCounter: number = 0;
+  private refreshRunning: Promise<void> | undefined;
+  private refreshQueued: boolean = false;
 
   constructor(controller: vscode.TestController) {
     this.controller = controller;
@@ -87,13 +88,31 @@ export class TestTree {
     );
   }
 
-  async refresh(): Promise<void> {
+  refresh(): Promise<void> {
+    if (this.refreshRunning !== undefined) {
+      this.refreshQueued = true;
+      return this.refreshRunning;
+    }
+    this.refreshRunning = this.refreshUntilQuiet();
+    return this.refreshRunning;
+  }
+
+  private async refreshUntilQuiet(): Promise<void> {
+    try {
+      do {
+        this.refreshQueued = false;
+        await this.refreshOnce();
+      } while (this.refreshQueued);
+    } finally {
+      this.refreshRunning = undefined;
+    }
+  }
+
+  private async refreshOnce(): Promise<void> {
     const settings = readSettings();
     if (settings === undefined) {
       return;
     }
-    this.refreshCounter += 1;
-    const myNumber = this.refreshCounter;
 
     let cases: TestCase[];
     try {
@@ -103,9 +122,6 @@ export class TestTree {
       return;
     }
     const ctestNames = await listCtestTests(settings.buildDir);
-    if (myNumber !== this.refreshCounter) {
-      return;
-    }
 
     const caseNames: string[] = [];
     for (const testCase of cases) {
