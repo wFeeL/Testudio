@@ -12,6 +12,8 @@ import { findTool, missingToolMessage } from './tools';
 const REFRESH_DELAY_MS = 300;
 const SHOW_OUTPUT = 'Показать вывод';
 
+let cmakeRunning = false;
+
 function readSettingsOrWarn(action: string): Settings | undefined {
   const settings = readSettings();
   if (settings === undefined) {
@@ -70,44 +72,61 @@ async function buildStep(settings: Settings, output: vscode.OutputChannel): Prom
   });
 }
 
-async function runConfigure(tree: TestTree, output: vscode.OutputChannel): Promise<void> {
-  const settings = readSettingsOrWarn('настроить');
-  if (settings === undefined) {
+async function runExclusive(tree: TestTree, work: () => Promise<string | undefined>): Promise<void> {
+  if (cmakeRunning) {
+    vscode.window.showInformationMessage('Настройка или сборка уже идёт.');
     return;
   }
-  const done = await configureStep(settings, output);
-  if (done) {
+  cmakeRunning = true;
+  tree.setCmakeRunning(true);
+  let doneText: string | undefined;
+  try {
+    doneText = await work();
+  } finally {
+    cmakeRunning = false;
+    tree.setCmakeRunning(false);
     await tree.refresh();
-    vscode.window.showInformationMessage('Настройка завершена.');
+  }
+  if (doneText !== undefined) {
+    vscode.window.showInformationMessage(doneText);
   }
 }
 
-async function runBuild(tree: TestTree, output: vscode.OutputChannel): Promise<void> {
-  const settings = readSettingsOrWarn('собрать');
-  if (settings === undefined) {
-    return;
-  }
-  const done = await buildStep(settings, output);
-  if (done) {
-    await tree.refresh();
-    vscode.window.showInformationMessage('Сборка завершена.');
-  }
+function runConfigure(tree: TestTree, output: vscode.OutputChannel): Promise<void> {
+  return runExclusive(tree, async function (): Promise<string | undefined> {
+    const settings = readSettingsOrWarn('настроить');
+    if (settings === undefined) {
+      return undefined;
+    }
+    const done = await configureStep(settings, output);
+    return done ? 'Настройка завершена.' : undefined;
+  });
 }
 
-async function runConfigureAndBuild(tree: TestTree, output: vscode.OutputChannel): Promise<void> {
-  const settings = readSettingsOrWarn('настроить и собрать');
-  if (settings === undefined) {
-    return;
-  }
-  const configured = await configureStep(settings, output);
-  if (!configured) {
-    return;
-  }
-  const built = await buildStep(settings, output);
-  if (built) {
-    await tree.refresh();
-    vscode.window.showInformationMessage('Настройка и сборка завершены.');
-  }
+function runBuild(tree: TestTree, output: vscode.OutputChannel): Promise<void> {
+  return runExclusive(tree, async function (): Promise<string | undefined> {
+    const settings = readSettingsOrWarn('собрать');
+    if (settings === undefined) {
+      return undefined;
+    }
+    const done = await buildStep(settings, output);
+    return done ? 'Сборка завершена.' : undefined;
+  });
+}
+
+function runConfigureAndBuild(tree: TestTree, output: vscode.OutputChannel): Promise<void> {
+  return runExclusive(tree, async function (): Promise<string | undefined> {
+    const settings = readSettingsOrWarn('настроить и собрать');
+    if (settings === undefined) {
+      return undefined;
+    }
+    const configured = await configureStep(settings, output);
+    if (!configured) {
+      return undefined;
+    }
+    const built = await buildStep(settings, output);
+    return built ? 'Настройка и сборка завершены.' : undefined;
+  });
 }
 
 async function runSelectExecutable(): Promise<void> {

@@ -78,6 +78,7 @@ export class TestTree {
   private emptyShownFor: string | undefined;
   private refreshRunning: Promise<void> | undefined;
   private refreshQueued: boolean = false;
+  private cmakeRunning: boolean = false;
 
   constructor(controller: vscode.TestController) {
     this.controller = controller;
@@ -242,6 +243,10 @@ export class TestTree {
     this.listener = listener;
   }
 
+  setCmakeRunning(running: boolean): void {
+    this.cmakeRunning = running;
+  }
+
   setRefreshListener(listener: RefreshListener | undefined): void {
     this.refreshListener = listener;
   }
@@ -269,6 +274,9 @@ export class TestTree {
   }
 
   private async showBrokenBuild(buildDir: string): Promise<void> {
+    if (this.cmakeRunning) {
+      return;
+    }
     const key = 'broken\n' + buildDir;
     if (this.emptyShownFor === key) {
       return;
@@ -283,6 +291,9 @@ export class TestTree {
   }
 
   private async showEmptyTree(testdataDir: string, buildDir: string, notBuilt: boolean): Promise<void> {
+    if (this.cmakeRunning) {
+      return;
+    }
     const configured = fs.existsSync(path.join(buildDir, 'CMakeCache.txt'));
     const key = testdataDir + '\n' + buildDir + '\n' + configured + '\n' + notBuilt;
     if (this.emptyShownFor === key) {
