@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { describeError } from './errors';
+import { isBareName } from './tools';
 
 export interface Settings {
   workspaceRoot: string;
@@ -24,6 +25,22 @@ function readText(config: vscode.WorkspaceConfiguration, key: string, fallback: 
     return fallback;
   }
   return value;
+}
+
+function readPath(
+  config: vscode.WorkspaceConfiguration,
+  key: string,
+  workspaceRoot: string,
+  keepBareName: boolean
+): string | undefined {
+  const text = readText(config, key, '');
+  if (text === '') {
+    return undefined;
+  }
+  if (keepBareName && isBareName(text)) {
+    return text;
+  }
+  return path.resolve(workspaceRoot, text);
 }
 
 function getWorkspaceRoot(): string | undefined {
@@ -53,25 +70,13 @@ export function readSettings(): Settings | undefined {
   const config = vscode.workspace.getConfiguration('testudio');
   const testdataPath = readText(config, 'testdataPath', DEFAULT_TESTDATA);
   const buildDirectory = readText(config, 'buildDirectory', DEFAULT_BUILD);
-  const executableText = readText(config, 'executablePath', '');
   let timeoutSeconds = config.get<number>('timeoutSeconds', DEFAULT_TIMEOUT);
   if (timeoutSeconds < 1) {
     timeoutSeconds = DEFAULT_TIMEOUT;
   }
-  let executablePath: string | undefined;
-  if (executableText !== '') {
-    executablePath = path.resolve(workspaceRoot, executableText);
-  }
-  const cmakeText = readText(config, 'cmakePath', '');
-  let cmakePath: string | undefined;
-  if (cmakeText !== '') {
-    cmakePath = path.resolve(workspaceRoot, cmakeText);
-  }
-  const ctestText = readText(config, 'ctestPath', '');
-  let ctestPath: string | undefined;
-  if (ctestText !== '') {
-    ctestPath = path.resolve(workspaceRoot, ctestText);
-  }
+  const executablePath = readPath(config, 'executablePath', workspaceRoot, false);
+  const cmakePath = readPath(config, 'cmakePath', workspaceRoot, true);
+  const ctestPath = readPath(config, 'ctestPath', workspaceRoot, true);
   return {
     workspaceRoot: workspaceRoot,
     testdataDir: path.resolve(workspaceRoot, testdataPath),

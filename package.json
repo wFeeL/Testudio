@@ -47,12 +47,12 @@
         "testudio.cmakePath": {
           "type": "string",
           "default": "",
-          "description": "Полный путь к cmake. Если пусто, плагин ищет cmake в PATH, затем в /opt/homebrew/bin, /usr/local/bin и /Applications/CMake.app/Contents/bin."
+          "description": "Путь к cmake или его имя без «/» (имя ищется в PATH). Если пусто, плагин ищет cmake в PATH, затем в /opt/homebrew/bin, /usr/local/bin и /Applications/CMake.app/Contents/bin."
         },
         "testudio.ctestPath": {
           "type": "string",
           "default": "",
-          "description": "Полный путь к ctest. Если пусто, плагин ищет ctest в PATH, затем в /opt/homebrew/bin, /usr/local/bin и /Applications/CMake.app/Contents/bin."
+          "description": "Путь к ctest или его имя без «/» (имя ищется в PATH). Если пусто, плагин ищет ctest в PATH, затем в /opt/homebrew/bin, /usr/local/bin и /Applications/CMake.app/Contents/bin."
         },
         "testudio.timeoutSeconds": {
           "type": "number",

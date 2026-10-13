@@ -128,7 +128,7 @@ export class TestTree {
     if (ctestNames !== undefined) {
       cppTests = splitCtestTests(ctestNames, caseNames);
     } else {
-      this.warnCtestUnavailable();
+      this.warnCtestUnavailable(settings.ctestPath);
     }
 
     this.cases.clear();
@@ -214,14 +214,18 @@ export class TestTree {
     this.results.delete(name);
   }
 
-  private warnCtestUnavailable(): void {
+  private warnCtestUnavailable(configured: string | undefined): void {
     if (this.ctestMessageShown) {
       return;
     }
     this.ctestMessageShown = true;
-    vscode.window.showWarningMessage(
-      'ctest недоступен или проект не собран. Если ctest установлен не в PATH, укажите путь к нему в настройке testudio.ctestPath.'
-    );
+    let text = 'ctest недоступен или проект не собран.';
+    if (configured === undefined) {
+      text += ' Если ctest установлен не в PATH, укажите путь к нему в настройке testudio.ctestPath.';
+    } else {
+      text += ' Искали «' + configured + '» (настройка testudio.ctestPath).';
+    }
+    vscode.window.showWarningMessage(text);
   }
 
   private buildCppGroup(cppTests: string[]): vscode.TestItem {

@@ -16,9 +16,17 @@ async function isExecutableFile(filePath: string): Promise<boolean> {
   }
 }
 
+export function isBareName(text: string): boolean {
+  return !text.includes('/') && !text.includes(path.sep);
+}
+
 export async function findTool(name: string, configured: string | undefined): Promise<string> {
+  let toolName = name;
   if (configured !== undefined) {
-    return configured;
+    if (!isBareName(configured)) {
+      return configured;
+    }
+    toolName = configured;
   }
   const dirs: string[] = [];
   const pathText = process.env.PATH;
@@ -33,18 +41,21 @@ export async function findTool(name: string, configured: string | undefined): Pr
     dirs.push(dir);
   }
   for (const dir of dirs) {
-    const candidate = path.join(dir, name);
+    const candidate = path.join(dir, toolName);
     if (await isExecutableFile(candidate)) {
       return candidate;
     }
   }
-  return name;
+  return toolName;
 }
 
 export function missingToolMessage(name: string, settingKey: string, configured: string | undefined): string {
+  const places = FALLBACK_DIRS.join(', ');
+  if (configured !== undefined && isBareName(configured)) {
+    return name + ' не найден: имя «' + configured + '» из настройки ' + settingKey + ' не нашлось в PATH и в каталогах ' + places + '.';
+  }
   if (configured !== undefined) {
     return name + ' не найден по пути из настройки ' + settingKey + ': ' + configured;
   }
-  const places = FALLBACK_DIRS.join(', ');
   return name + ' не найден в PATH и в каталогах ' + places + '. Укажите путь к нему в настройке ' + settingKey + '.';
 }

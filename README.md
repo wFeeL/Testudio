@@ -103,8 +103,8 @@ npx vsce package
 | `testudio.testdataPath` | `tests/testdata` | каталог с кейсами относительно корня открытой папки |
 | `testudio.buildDirectory` | `build` | каталог сборки для `ctest` и `cmake --build` |
 | `testudio.executablePath` | не задан | тестируемая программа; если путь не задан или файла нет, при первом запуске кейса откроется выбор файла, путь запомнится в настройках рабочей области |
-| `testudio.cmakePath` | не задан | полный путь к `cmake`; если пусто, поиск идёт в `PATH`, затем в `/opt/homebrew/bin`, `/usr/local/bin`, `/Applications/CMake.app/Contents/bin` |
-| `testudio.ctestPath` | не задан | полный путь к `ctest`, поиск такой же, как у `cmake` |
+| `testudio.cmakePath` | не задан | путь к `cmake` или его имя без `/` (имя ищется в `PATH`, путь с `/` считается от корня папки); если пусто, поиск идёт в `PATH`, затем в `/opt/homebrew/bin`, `/usr/local/bin`, `/Applications/CMake.app/Contents/bin` |
+| `testudio.ctestPath` | не задан | путь к `ctest` или его имя, правила и поиск такие же, как у `cmake` |
 | `testudio.timeoutSeconds` | `10` | таймаут запуска одного теста в секундах |
 
 ## Как пользоваться
