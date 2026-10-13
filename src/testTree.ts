@@ -12,6 +12,7 @@ import {
 import { describeError } from './errors';
 import { ensureExecutable, readSettings, Settings } from './settings';
 import { TestCase, listCases } from './testCase';
+import { findTool, missingToolMessage } from './tools';
 
 export type ResultListener = (caseName: string, result: RunResult) => void;
 export type RefreshListener = () => void;
@@ -115,7 +116,8 @@ export class TestTree {
       vscode.window.showErrorMessage('Не удалось прочитать кейсы: ' + describeError(error));
       return;
     }
-    const ctestNames = await listCtestTests(settings.buildDir);
+    const ctestCommand = await findTool('ctest', settings.ctestPath);
+    const ctestNames = await listCtestTests(settings.buildDir, ctestCommand);
 
     const caseNames: string[] = [];
     for (const testCase of cases) {
@@ -217,7 +219,9 @@ export class TestTree {
       return;
     }
     this.ctestMessageShown = true;
-    vscode.window.showWarningMessage('ctest недоступен или проект не собран');
+    vscode.window.showWarningMessage(
+      'ctest недоступен или проект не собран. Если ctest установлен не в PATH, укажите путь к нему в настройке testudio.ctestPath.'
+    );
   }
 
   private buildCppGroup(cppTests: string[]): vscode.TestItem {
@@ -365,7 +369,8 @@ export class TestTree {
   ): Promise<void> {
     const testName = item.id.slice(CPP_PREFIX.length);
     const startedAt = Date.now();
-    const result = await runCtestTest(settings.buildDir, testName, settings.timeoutSeconds, token);
+    const ctestCommand = await findTool('ctest', settings.ctestPath);
+    const result = await runCtestTest(ctestCommand, settings.buildDir, testName, settings.timeoutSeconds, token);
     const duration = Date.now() - startedAt;
     if (token.isCancellationRequested) {
       run.skipped(item);
@@ -377,7 +382,8 @@ export class TestTree {
     }
 
     if (result.missing) {
-      run.errored(item, new vscode.TestMessage('ctest не найден в PATH'), duration);
+      const text = missingToolMessage('ctest', 'testudio.ctestPath', settings.ctestPath);
+      run.errored(item, new vscode.TestMessage(text), duration);
     } else if (result.exitCode === null) {
       run.errored(item, new vscode.TestMessage(result.output), duration);
     } else if (result.exitCode === 0) {

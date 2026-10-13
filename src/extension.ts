@@ -7,6 +7,7 @@ import { buildProject } from './ctest';
 import { killAllProcesses } from './processes';
 import { chooseExecutable, readSettings } from './settings';
 import { CASE_PREFIX, TestTree } from './testTree';
+import { findTool, missingToolMessage } from './tools';
 
 const REFRESH_DELAY_MS = 300;
 const SHOW_OUTPUT = 'Показать вывод';
@@ -24,7 +25,8 @@ async function runBuild(tree: TestTree, output: vscode.OutputChannel): Promise<v
       title: 'Testudio++: сборка проекта'
     },
     async function () {
-      return buildProject(settings.buildDir);
+      const cmakeCommand = await findTool('cmake', settings.cmakePath);
+      return buildProject(cmakeCommand, settings.buildDir);
     }
   );
 
@@ -39,7 +41,7 @@ async function runBuild(tree: TestTree, output: vscode.OutputChannel): Promise<v
 
   let text = 'Сборка не удалась, код возврата ' + result.exitCode + '.';
   if (result.missing) {
-    text = 'Не найден cmake: проверьте, что он есть в PATH.';
+    text = missingToolMessage('cmake', 'testudio.cmakePath', settings.cmakePath);
   } else if (result.exitCode === null) {
     text = 'Сборка не запущена: ' + result.output;
   }

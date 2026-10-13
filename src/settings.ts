@@ -8,6 +8,8 @@ export interface Settings {
   testdataDir: string;
   buildDir: string;
   executablePath: string | undefined;
+  cmakePath: string | undefined;
+  ctestPath: string | undefined;
   timeoutSeconds: number;
 }
 
@@ -60,11 +62,23 @@ export function readSettings(): Settings | undefined {
   if (executableText !== '') {
     executablePath = path.resolve(workspaceRoot, executableText);
   }
+  const cmakeText = readText(config, 'cmakePath', '');
+  let cmakePath: string | undefined;
+  if (cmakeText !== '') {
+    cmakePath = path.resolve(workspaceRoot, cmakeText);
+  }
+  const ctestText = readText(config, 'ctestPath', '');
+  let ctestPath: string | undefined;
+  if (ctestText !== '') {
+    ctestPath = path.resolve(workspaceRoot, ctestText);
+  }
   return {
     workspaceRoot: workspaceRoot,
     testdataDir: path.resolve(workspaceRoot, testdataPath),
     buildDir: path.resolve(workspaceRoot, buildDirectory),
     executablePath: executablePath,
+    cmakePath: cmakePath,
+    ctestPath: ctestPath,
     timeoutSeconds: timeoutSeconds
   };
 }

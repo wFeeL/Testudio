@@ -66,7 +66,7 @@ tests/testdata/04_OnlyNewlines/
 ## Требования
 
 - VS Code версии 1.100 или новее;
-- CMake и ctest в `PATH` (нужны для группы «Тесты C++» и для команды сборки; кейсы данных работают и без них);
+- CMake и ctest в `PATH` или по пути из настроек `testudio.cmakePath` и `testudio.ctestPath` (нужны для группы «Тесты C++» и для команды сборки; кейсы данных работают и без них). Если в `PATH` их нет, плагин смотрит ещё в `/opt/homebrew/bin`, `/usr/local/bin` и `/Applications/CMake.app/Contents/bin`;
 - macOS или Linux.
 
 ## Установка
@@ -103,6 +103,8 @@ npx vsce package
 | `testudio.testdataPath` | `tests/testdata` | каталог с кейсами относительно корня открытой папки |
 | `testudio.buildDirectory` | `build` | каталог сборки для `ctest` и `cmake --build` |
 | `testudio.executablePath` | не задан | тестируемая программа; если путь не задан или файла нет, при первом запуске кейса откроется выбор файла, путь запомнится в настройках рабочей области |
+| `testudio.cmakePath` | не задан | полный путь к `cmake`; если пусто, поиск идёт в `PATH`, затем в `/opt/homebrew/bin`, `/usr/local/bin`, `/Applications/CMake.app/Contents/bin` |
+| `testudio.ctestPath` | не задан | полный путь к `ctest`, поиск такой же, как у `cmake` |
 | `testudio.timeoutSeconds` | `10` | таймаут запуска одного теста в секундах |
 
 ## Как пользоваться

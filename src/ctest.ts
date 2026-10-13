@@ -79,11 +79,11 @@ export async function runCommand(
   });
 }
 
-export async function listCtestTests(buildDir: string): Promise<string[] | undefined> {
+export async function listCtestTests(buildDir: string, ctestCommand: string): Promise<string[] | undefined> {
   if (!fs.existsSync(buildDir)) {
     return undefined;
   }
-  const result = await runCommand('ctest', ['--test-dir', buildDir, '--show-only=json-v1'], buildDir, 60);
+  const result = await runCommand(ctestCommand, ['--test-dir', buildDir, '--show-only=json-v1'], buildDir, 60);
   if (result.missing || result.exitCode !== 0) {
     return undefined;
   }
@@ -158,6 +158,7 @@ export function escapeRegex(text: string): string {
 }
 
 export async function runCtestTest(
+  ctestCommand: string,
   buildDir: string,
   testName: string,
   timeoutSeconds: number,
@@ -175,12 +176,12 @@ export async function runCtestTest(
     '--timeout',
     String(timeoutSeconds)
   ];
-  return runCommand('ctest', args, buildDir, timeoutSeconds + 30, token);
+  return runCommand(ctestCommand, args, buildDir, timeoutSeconds + 30, token);
 }
 
-export async function buildProject(buildDir: string): Promise<CommandResult> {
+export async function buildProject(cmakeCommand: string, buildDir: string): Promise<CommandResult> {
   if (!fs.existsSync(buildDir)) {
     return { exitCode: null, output: 'каталог сборки не найден: ' + buildDir, missing: false };
   }
-  return runCommand('cmake', ['--build', buildDir], buildDir, 600);
+  return runCommand(cmakeCommand, ['--build', buildDir], buildDir, 600);
 }
