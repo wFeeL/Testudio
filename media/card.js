@@ -35,16 +35,6 @@ function makeRunButton() {
   return button;
 }
 
-function shouldShowAccept(data) {
-  if (data.actual === undefined) {
-    return false;
-  }
-  if (data.exitCode === null) {
-    return false;
-  }
-  return data.expected.text !== data.actual.text;
-}
-
 function makeHeader(data) {
   const section = makeElement('div', '', '');
   section.appendChild(makeElement('h1', '', data.name));
@@ -67,7 +57,7 @@ function makeHeader(data) {
   if (data.status === 'failed' && data.actual !== undefined) {
     buttons.appendChild(makeButton('Diff', 'diff'));
   }
-  if (shouldShowAccept(data)) {
+  if (data.canAccept) {
     buttons.appendChild(makeButton('Принять фактический вывод', 'accept'));
   }
   buttons.appendChild(makeButton('Изменить', 'edit'));

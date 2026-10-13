@@ -36,6 +36,7 @@ export interface CardData {
   files: { name: string; content: CardText }[];
   expected: CardText;
   actual: CardText | undefined;
+  canAccept: boolean;
 }
 
 interface PageFile {
@@ -87,6 +88,8 @@ export function buildCardData(testCase: TestCase, result: RunResult | undefined)
   let exitCode: number | null = null;
   let message = '';
   let actual: CardText | undefined;
+  let canAccept = false;
+  const expectedBytes = substituteDir(testCase.expected, testCase.folder);
 
   if (result === undefined) {
     if (testCase.problem !== undefined) {
@@ -101,6 +104,7 @@ export function buildCardData(testCase: TestCase, result: RunResult | undefined)
     exitCode = result.exitCode;
     message = result.message;
     actual = toCardText(result.stdout);
+    canAccept = result.exitCode !== null && !result.stdout.equals(expectedBytes);
   }
 
   return {
@@ -112,8 +116,9 @@ export function buildCardData(testCase: TestCase, result: RunResult | undefined)
     args: testCase.args,
     argsEditable: testCase.argsEditable,
     files: files,
-    expected: toCardText(substituteDir(testCase.expected, testCase.folder)),
-    actual: actual
+    expected: toCardText(expectedBytes),
+    actual: actual,
+    canAccept: canAccept
   };
 }
 
@@ -132,7 +137,8 @@ export function buildFormData(testCase: TestCase): CardData {
     argsEditable: testCase.argsEditable,
     files: files,
     expected: toCardText(testCase.expected),
-    actual: undefined
+    actual: undefined,
+    canAccept: false
   };
 }
 
@@ -147,7 +153,8 @@ export function buildNewData(name: string): CardData {
     argsEditable: true,
     files: [],
     expected: { text: '', simple: true },
-    actual: undefined
+    actual: undefined,
+    canAccept: false
   };
 }
 
