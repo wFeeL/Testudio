@@ -5,6 +5,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { isEditableText, restoreDir, substituteDir } from './bytes';
+import { confirmAndDeleteCase } from './caseDelete';
 import { RunResult } from './caseRunner';
 import { describeError } from './errors';
 import { readSettings } from './settings';
@@ -15,7 +16,6 @@ import {
   TestCase,
   checkDraft,
   createCase,
-  deleteCase,
   nextCaseNumber,
   renameCase,
   updateCase
@@ -62,7 +62,6 @@ interface PageMessage {
 }
 
 const ACCEPT_LABEL = 'Принять';
-const DELETE_LABEL = 'Удалить';
 
 function toCardText(data: Buffer): CardText {
   if (isEditableText(data)) {
@@ -259,6 +258,13 @@ export class CasePanel {
     const created = new CasePanel(context, tree, panel, '', 'create');
     CasePanel.creating = created;
     CasePanel.attach(tree);
+  }
+
+  static closeFor(caseName: string): void {
+    const target = CasePanel.panels.get(caseName);
+    if (target !== undefined) {
+      target.panel.dispose();
+    }
   }
 
   private static attach(tree: TestTree): void {
@@ -500,15 +506,10 @@ export class CasePanel {
       vscode.window.showWarningMessage('Кейс не найден, обновите дерево тестов.');
       return;
     }
-    const choice = await vscode.window.showWarningMessage(
-      'Удалить кейс ' + this.caseName + ' вместе со всеми его файлами?',
-      { modal: true },
-      DELETE_LABEL
-    );
-    if (choice !== DELETE_LABEL) {
+    const deleted = await confirmAndDeleteCase(testCase);
+    if (!deleted) {
       return;
     }
-    await deleteCase(testCase.folder);
     await this.tree.refresh();
     this.panel.dispose();
   }

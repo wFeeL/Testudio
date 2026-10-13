@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { confirmAndDeleteCase } from './caseDelete';
 import { registerCaseEditor } from './caseEditor';
 import { CasePanel } from './casePanel';
 import { CASE_VIEW_TYPE, caseUri } from './caseUri';
@@ -80,6 +81,24 @@ async function runOpenCase(tree: TestTree, item: vscode.TestItem | undefined): P
   await vscode.commands.executeCommand('vscode.openWith', caseUri(name), CASE_VIEW_TYPE);
 }
 
+async function runDeleteCase(tree: TestTree, item: vscode.TestItem | undefined): Promise<void> {
+  const name = caseNameFromItem(item);
+  if (name === undefined) {
+    return;
+  }
+  const testCase = tree.getCase(name);
+  if (testCase === undefined) {
+    vscode.window.showWarningMessage('Кейс не найден, обновите дерево тестов.');
+    return;
+  }
+  const deleted = await confirmAndDeleteCase(testCase);
+  if (!deleted) {
+    return;
+  }
+  CasePanel.closeFor(name);
+  await tree.refresh();
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   const controller = vscode.tests.createTestController('testudio', 'Testudio++');
   const output = vscode.window.createOutputChannel('Testudio++');
@@ -133,6 +152,11 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('testudio.openCase', function (item?: vscode.TestItem): Promise<void> {
       return runOpenCase(tree, item);
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('testudio.deleteCase', function (item?: vscode.TestItem): Promise<void> {
+      return runDeleteCase(tree, item);
     })
   );
   context.subscriptions.push(

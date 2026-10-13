@@ -79,9 +79,21 @@
         "command": "testudio.newCase",
         "title": "Новый кейс",
         "category": "Testudio++"
+      },
+      {
+        "command": "testudio.deleteCase",
+        "title": "Удалить кейс",
+        "category": "Testudio++",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
+      "commandPalette": [
+        {
+          "command": "testudio.deleteCase",
+          "when": "false"
+        }
+      ],
       "testing/item/context": [
         {
           "command": "testudio.openCase",
@@ -90,6 +102,16 @@
         },
         {
           "command": "testudio.openCase",
+          "when": "controllerId == testudio && testId =~ /case:\\w+$/",
+          "group": "inline"
+        },
+        {
+          "command": "testudio.deleteCase",
+          "when": "controllerId == testudio && testId =~ /case:\\w+$/",
+          "group": "modification"
+        },
+        {
+          "command": "testudio.deleteCase",
           "when": "controllerId == testudio && testId =~ /case:\\w+$/",
           "group": "inline"
         },
