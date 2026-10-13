@@ -389,6 +389,7 @@ export class CasePanel {
       } else if (message.type === 'edit') {
         this.mode = 'edit';
         this.render();
+        await vscode.commands.executeCommand('workbench.action.keepEditor');
       } else if (message.type === 'cancel') {
         this.cancelForm();
       } else if (message.type === 'rename') {

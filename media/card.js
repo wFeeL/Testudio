@@ -4,7 +4,7 @@ const root = document.getElementById('root');
 const STATUS_TEXT = {
   passed: 'Пройден',
   failed: 'Упал',
-  unknown: 'Не запускался'
+  unknown: 'Нет результата в этом сеансе'
 };
 
 function makeElement(tag, className, text) {
@@ -115,7 +115,7 @@ function makeColumn(title, content) {
   const column = makeElement('div', 'column', '');
   column.appendChild(makeElement('h2', '', title));
   if (content === undefined) {
-    column.appendChild(makeElement('div', 'muted', 'кейс ещё не запускался'));
+    column.appendChild(makeElement('div', 'muted', 'нет результата в этом сеансе, запустите кейс'));
   } else {
     column.appendChild(makeTextBlock(content));
   }
