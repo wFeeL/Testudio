@@ -61,6 +61,7 @@ function collectLeaves(item: vscode.TestItem, excluded: Set<string>, leaves: vsc
 
 export class TestTree {
   private controller: vscode.TestController;
+  private runProfile: vscode.TestRunProfile;
   private cases: Map<string, TestCase> = new Map<string, TestCase>();
   private caseItems: Map<string, vscode.TestItem> = new Map<string, vscode.TestItem>();
   private results: Map<string, RunResult> = new Map<string, RunResult>();
@@ -72,7 +73,7 @@ export class TestTree {
 
   constructor(controller: vscode.TestController) {
     this.controller = controller;
-    controller.createRunProfile(
+    this.runProfile = controller.createRunProfile(
       'Запуск',
       vscode.TestRunProfileKind.Run,
       (request: vscode.TestRunRequest, token: vscode.CancellationToken): Promise<void> =>
@@ -186,7 +187,7 @@ export class TestTree {
     if (items.length === 0) {
       return;
     }
-    const request = new vscode.TestRunRequest(items);
+    const request = new vscode.TestRunRequest(items, undefined, this.runProfile);
     const source = new vscode.CancellationTokenSource();
     try {
       await this.runRequest(request, source.token);
