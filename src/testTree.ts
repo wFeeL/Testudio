@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { SHOW_LIMIT, showBytes, substituteDir } from './bytes';
 import { RunResult, runCase } from './caseRunner';
+import { caseUri } from './caseUri';
 import {
   caseNameFromCtest,
   listCtestTests,
@@ -151,7 +152,11 @@ export class TestTree {
 
     for (const testCase of cases) {
       this.cases.set(testCase.name, testCase);
-      const item = this.controller.createTestItem(CASE_PREFIX + testCase.name, testCase.name);
+      const item = this.controller.createTestItem(
+        CASE_PREFIX + testCase.name,
+        testCase.name,
+        caseUri(testCase.name)
+      );
       if (testCase.problem !== undefined) {
         item.error = testCase.problem;
       } else if (ctestNames !== undefined && !knownToCtest.has(testCase.name)) {

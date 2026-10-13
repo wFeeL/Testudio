@@ -46,6 +46,18 @@
         }
       }
     },
+    "customEditors": [
+      {
+        "viewType": "testudio.caseCard",
+        "displayName": "Карточка кейса Testudio++",
+        "selector": [
+          {
+            "filenamePattern": "*.testudiocase"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
     "commands": [
       {
         "command": "testudio.build",
@@ -60,7 +72,8 @@
       {
         "command": "testudio.openCase",
         "title": "Открыть карточку",
-        "category": "Testudio++"
+        "category": "Testudio++",
+        "icon": "$(open-preview)"
       },
       {
         "command": "testudio.newCase",
@@ -74,6 +87,11 @@
           "command": "testudio.openCase",
           "when": "controllerId == testudio && testId =~ /case:\\w+$/",
           "group": "navigation"
+        },
+        {
+          "command": "testudio.openCase",
+          "when": "controllerId == testudio && testId =~ /case:\\w+$/",
+          "group": "inline"
         },
         {
           "command": "testudio.newCase",

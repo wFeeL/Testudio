@@ -238,18 +238,12 @@ export class CasePanel {
   private caseName: string;
   private mode: CardMode;
 
-  static show(context: vscode.ExtensionContext, tree: TestTree, caseName: string): void {
+  static open(context: vscode.ExtensionContext, tree: TestTree, panel: vscode.WebviewPanel, caseName: string): void {
     const existing = CasePanel.panels.get(caseName);
     if (existing !== undefined) {
-      existing.panel.reveal();
-      existing.update();
-      return;
+      existing.panel.dispose();
     }
-    if (tree.getCase(caseName) === undefined) {
-      vscode.window.showErrorMessage('Кейс ' + caseName + ' не найден, обновите дерево тестов.');
-      return;
-    }
-    const created = new CasePanel(context, tree, caseName, 'view');
+    const created = new CasePanel(context, tree, panel, caseName, 'view');
     CasePanel.panels.set(caseName, created);
     CasePanel.attach(tree);
   }
@@ -259,7 +253,10 @@ export class CasePanel {
       CasePanel.creating.panel.reveal();
       return;
     }
-    const created = new CasePanel(context, tree, '', 'create');
+    const panel = vscode.window.createWebviewPanel('testudio.case', 'Новый кейс', vscode.ViewColumn.Active, {
+      retainContextWhenHidden: true
+    });
+    const created = new CasePanel(context, tree, panel, '', 'create');
     CasePanel.creating = created;
     CasePanel.attach(tree);
   }
@@ -285,22 +282,19 @@ export class CasePanel {
   private constructor(
     context: vscode.ExtensionContext,
     tree: TestTree,
+    panel: vscode.WebviewPanel,
     caseName: string,
     mode: CardMode
   ) {
     this.tree = tree;
+    this.panel = panel;
     this.caseName = caseName;
     this.mode = mode;
-    let title = 'Кейс ' + caseName;
-    if (mode === 'create') {
-      title = 'Новый кейс';
+    if (mode === 'view') {
+      this.panel.title = 'Кейс ' + caseName;
     }
     const mediaRoot = vscode.Uri.joinPath(context.extensionUri, 'media');
-    this.panel = vscode.window.createWebviewPanel('testudio.case', title, vscode.ViewColumn.Active, {
-      enableScripts: true,
-      retainContextWhenHidden: true,
-      localResourceRoots: [mediaRoot]
-    });
+    this.panel.webview.options = { enableScripts: true, localResourceRoots: [mediaRoot] };
     this.panel.webview.html = this.buildHtml(mediaRoot);
     this.panel.webview.onDidReceiveMessage((message: PageMessage): Promise<void> => this.handleMessage(message));
     this.panel.onDidDispose(() => this.onDispose());

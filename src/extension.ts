@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
+import { registerCaseEditor } from './caseEditor';
 import { CasePanel } from './casePanel';
+import { CASE_VIEW_TYPE, caseUri } from './caseUri';
 import { buildProject } from './ctest';
 import { chooseExecutable, readSettings } from './settings';
 import { CASE_PREFIX, TestTree } from './testTree';
@@ -62,11 +64,7 @@ function caseNameFromItem(item: vscode.TestItem | undefined): string | undefined
   return item.id.slice(CASE_PREFIX.length);
 }
 
-async function runOpenCase(
-  context: vscode.ExtensionContext,
-  tree: TestTree,
-  item: vscode.TestItem | undefined
-): Promise<void> {
+async function runOpenCase(tree: TestTree, item: vscode.TestItem | undefined): Promise<void> {
   let name = caseNameFromItem(item);
   if (name === undefined) {
     const names = tree.getCaseNames();
@@ -79,7 +77,7 @@ async function runOpenCase(
       return;
     }
   }
-  CasePanel.show(context, tree, name);
+  await vscode.commands.executeCommand('vscode.openWith', caseUri(name), CASE_VIEW_TYPE);
 }
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -134,7 +132,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(
     vscode.commands.registerCommand('testudio.openCase', function (item?: vscode.TestItem): Promise<void> {
-      return runOpenCase(context, tree, item);
+      return runOpenCase(tree, item);
     })
   );
   context.subscriptions.push(
@@ -142,6 +140,7 @@ export function activate(context: vscode.ExtensionContext): void {
       CasePanel.showNew(context, tree);
     })
   );
+  context.subscriptions.push(registerCaseEditor(context, tree));
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(function (event: vscode.ConfigurationChangeEvent): void {
       if (event.affectsConfiguration('testudio')) {
