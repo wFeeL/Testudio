@@ -19,6 +19,12 @@
     "workspaceContains:CMakeLists.txt"
   ],
   "main": "./out/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Плагин запускает программы и тесты проекта, поэтому работает только в доверенной папке."
+    }
+  },
   "contributes": {
     "configuration": {
       "title": "Testudio++",
