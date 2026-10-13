@@ -7,12 +7,6 @@ export interface CommandResult {
   missing: boolean;
 }
 
-export interface CtestSplit {
-  caseTests: string[];
-  missingCaseTests: string[];
-  cppTests: string[];
-}
-
 export async function runCommand(
   command: string,
   args: string[],
@@ -112,7 +106,7 @@ function prefixFromCtest(testName: string): string {
   return shortName.slice(0, shortName.lastIndexOf('/'));
 }
 
-export function splitCtestTests(testNames: string[], caseNames: string[]): CtestSplit {
+export function splitCtestTests(testNames: string[], caseNames: string[]): string[] {
   const known = new Set<string>(caseNames);
   const prefixes = new Set<string>();
 
@@ -123,22 +117,14 @@ export function splitCtestTests(testNames: string[], caseNames: string[]): Ctest
     }
   }
 
-  const caseTests: string[] = [];
-  const missingCaseTests: string[] = [];
   const cppTests: string[] = [];
-
   for (const testName of testNames) {
     const caseName = caseNameFromCtest(testName);
-    if (caseName !== undefined && known.has(caseName)) {
-      caseTests.push(testName);
-    } else if (caseName !== undefined && prefixes.has(prefixFromCtest(testName))) {
-      missingCaseTests.push(testName);
-    } else {
+    if (caseName === undefined || !prefixes.has(prefixFromCtest(testName))) {
       cppTests.push(testName);
     }
   }
-
-  return { caseTests: caseTests, missingCaseTests: missingCaseTests, cppTests: cppTests };
+  return cppTests;
 }
 
 export function suiteNameFromCtest(testName: string): string {

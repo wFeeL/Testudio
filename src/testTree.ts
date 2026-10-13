@@ -3,7 +3,6 @@ import { SHOW_LIMIT, showBytes, substituteDir } from './bytes';
 import { RunResult, runCase } from './caseRunner';
 import { caseUri } from './caseUri';
 import {
-  caseNameFromCtest,
   listCtestTests,
   runCtestTest,
   splitCtestTests,
@@ -22,22 +21,6 @@ const GROUP_CPP_ID = 'group:cpp';
 export const CASE_PREFIX = 'case:';
 const CPP_PREFIX = 'cpp:';
 const SUITE_PREFIX = 'suite:';
-const MISSING_PREFIX = 'missing:';
-
-function rebuildCommand(buildDir: string): string {
-  return 'cmake --build ' + buildDir + ' --clean-first';
-}
-
-function mismatchMessage(absent: number, removed: number, buildDir: string): string {
-  const parts: string[] = [];
-  if (absent > 0) {
-    parts.push('ctest не видит кейсов: ' + absent);
-  }
-  if (removed > 0) {
-    parts.push('ctest помнит удалённых кейсов: ' + removed);
-  }
-  return parts.join('; ') + '. Чтобы это исправить, выполните: ' + rebuildCommand(buildDir);
-}
 
 export function showLimited(data: Buffer): string {
   if (data.length <= SHOW_LIMIT) {
@@ -60,7 +43,7 @@ function testLabel(testName: string, suiteName: string): string {
 }
 
 function isRunnable(id: string): boolean {
-  return id.startsWith(CASE_PREFIX) || id.startsWith(CPP_PREFIX) || id.startsWith(MISSING_PREFIX);
+  return id.startsWith(CASE_PREFIX) || id.startsWith(CPP_PREFIX);
 }
 
 function collectLeaves(item: vscode.TestItem, excluded: Set<string>, leaves: vscode.TestItem[]): void {
@@ -84,7 +67,6 @@ export class TestTree {
   private listener: ResultListener | undefined;
   private refreshListener: RefreshListener | undefined;
   private ctestMessageShown: boolean = false;
-  private shownMismatch: string = '';
   private refreshRunning: Promise<void> | undefined;
   private refreshQueued: boolean = false;
 
@@ -139,30 +121,16 @@ export class TestTree {
       caseNames.push(testCase.name);
     }
 
-    let caseTests: string[] = [];
-    let missingCaseTests: string[] = [];
     let cppTests: string[] = [];
     if (ctestNames !== undefined) {
-      const split = splitCtestTests(ctestNames, caseNames);
-      caseTests = split.caseTests;
-      missingCaseTests = split.missingCaseTests;
-      cppTests = split.cppTests;
+      cppTests = splitCtestTests(ctestNames, caseNames);
     } else {
       this.warnCtestUnavailable();
-    }
-
-    const knownToCtest = new Set<string>();
-    for (const testName of caseTests) {
-      const caseName = caseNameFromCtest(testName);
-      if (caseName !== undefined) {
-        knownToCtest.add(caseName);
-      }
     }
 
     this.cases.clear();
     this.caseItems.clear();
     const dataGroup = this.controller.createTestItem(GROUP_DATA_ID, 'Кейсы testdata');
-    const absentNames: string[] = [];
 
     for (const testCase of cases) {
       this.cases.set(testCase.name, testCase);
@@ -173,26 +141,10 @@ export class TestTree {
       );
       if (testCase.problem !== undefined) {
         item.error = testCase.problem;
-      } else if (ctestNames !== undefined && !knownToCtest.has(testCase.name)) {
-        item.description = 'нет в ctest';
-        absentNames.push(testCase.name);
       }
       dataGroup.children.add(item);
       this.caseItems.set(testCase.name, item);
     }
-
-    for (const testName of missingCaseTests) {
-      let label = testName;
-      const caseName = caseNameFromCtest(testName);
-      if (caseName !== undefined) {
-        label = caseName;
-      }
-      const item = this.controller.createTestItem(MISSING_PREFIX + testName, label);
-      item.description = 'удалён, есть в ctest';
-      dataGroup.children.add(item);
-    }
-
-    this.reportMismatch(absentNames, missingCaseTests, settings.buildDir);
 
     for (const name of this.results.keys()) {
       if (!this.cases.has(name)) {
@@ -257,19 +209,6 @@ export class TestTree {
 
   forgetResult(name: string): void {
     this.results.delete(name);
-  }
-
-  private reportMismatch(absentNames: string[], missingTests: string[], buildDir: string): void {
-    if (absentNames.length === 0 && missingTests.length === 0) {
-      this.shownMismatch = '';
-      return;
-    }
-    const key = buildDir + '|' + absentNames.join(',') + '|' + missingTests.join(',');
-    if (key === this.shownMismatch) {
-      return;
-    }
-    this.shownMismatch = key;
-    vscode.window.showInformationMessage(mismatchMessage(absentNames.length, missingTests.length, buildDir));
   }
 
   private warnCtestUnavailable(): void {
@@ -363,13 +302,8 @@ export class TestTree {
   ): Promise<void> {
     if (item.id.startsWith(CASE_PREFIX)) {
       await this.runDataCase(item, run, settings, executable);
-    } else if (item.id.startsWith(CPP_PREFIX)) {
-      await this.runCppTest(item, run, settings);
     } else {
-      run.errored(
-        item,
-        new vscode.TestMessage('кейс удалён, пересоберите тесты: ' + rebuildCommand(settings.buildDir))
-      );
+      await this.runCppTest(item, run, settings);
     }
   }
 
