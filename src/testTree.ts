@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { SHOW_LIMIT, showBytes, substituteDir } from './bytes';
 import { RunResult, runCase } from './caseRunner';
@@ -69,6 +70,7 @@ export class TestTree {
   private listener: ResultListener | undefined;
   private refreshListener: RefreshListener | undefined;
   private ctestMessageShown: boolean = false;
+  private emptyShownFor: string | undefined;
   private refreshRunning: Promise<void> | undefined;
   private refreshQueued: boolean = false;
 
@@ -127,8 +129,6 @@ export class TestTree {
     let cppTests: string[] = [];
     if (ctestNames !== undefined) {
       cppTests = splitCtestTests(ctestNames, caseNames);
-    } else {
-      this.warnCtestUnavailable(settings.ctestPath);
     }
 
     this.cases.clear();
@@ -155,11 +155,24 @@ export class TestTree {
       }
     }
 
-    const groups: vscode.TestItem[] = [dataGroup];
-    if (ctestNames !== undefined) {
+    const groups: vscode.TestItem[] = [];
+    if (cases.length > 0) {
+      groups.push(dataGroup);
+    }
+    if (cppTests.length > 0) {
       groups.push(this.buildCppGroup(cppTests));
     }
     this.controller.items.replace(groups);
+
+    const warnCtest = ctestNames === undefined && (groups.length > 0 || fs.existsSync(settings.buildDir));
+    if (warnCtest) {
+      this.warnCtestUnavailable(settings.ctestPath);
+    }
+    if (groups.length > 0) {
+      this.emptyShownFor = undefined;
+    } else if (!warnCtest) {
+      this.showEmptyTree(settings.testdataDir, settings.buildDir);
+    }
 
     if (this.refreshListener !== undefined) {
       this.refreshListener();
@@ -226,6 +239,22 @@ export class TestTree {
       text += ' Искали «' + configured + '» (настройка testudio.ctestPath).';
     }
     vscode.window.showWarningMessage(text);
+  }
+
+  private showEmptyTree(testdataDir: string, buildDir: string): void {
+    const key = testdataDir + '\n' + buildDir;
+    if (this.emptyShownFor === key) {
+      return;
+    }
+    this.emptyShownFor = key;
+    vscode.window.showInformationMessage(
+      'Тесты не найдены: нет кейсов в ' +
+        testdataDir +
+        ', а ctest не нашёл тестов в ' +
+        buildDir +
+        '. Соберите проект: cmake --build ' +
+        buildDir
+    );
   }
 
   private buildCppGroup(cppTests: string[]): vscode.TestItem {
