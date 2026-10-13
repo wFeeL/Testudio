@@ -392,6 +392,9 @@ export class TestTree {
       run.errored(item, new vscode.TestMessage(result.output), duration);
     } else if (result.exitCode === 0) {
       run.passed(item, duration);
+    } else if (result.output.includes('No tests were found')) {
+      const text = 'ctest не нашёл тест ' + testName + ', пересоберите проект\n' + result.output;
+      run.failed(item, new vscode.TestMessage(text), duration);
     } else {
       const text = 'код возврата ctest ' + result.exitCode + '\n' + result.output;
       run.failed(item, new vscode.TestMessage(text), duration);

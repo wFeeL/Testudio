@@ -172,6 +172,7 @@ export async function runCtestTest(
     buildDir,
     '-R',
     '^' + escapeRegex(testName) + '$',
+    '--no-tests=error',
     '--output-on-failure',
     '--timeout',
     String(timeoutSeconds)
