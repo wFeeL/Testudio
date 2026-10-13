@@ -1,7 +1,7 @@
 import { Dirent, Stats } from 'fs';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { isSimpleText } from './bytes';
+import { isEditableText } from './bytes';
 
 export interface CaseFile {
   name: string;
@@ -19,7 +19,7 @@ export interface TestCase {
 }
 
 const ARGS_FILE = 'args.txt';
-const EXPECTED_FILE = 'expected.txt';
+export const EXPECTED_FILE = 'expected.txt';
 
 export function isValidCaseName(name: string): boolean {
   return /^[A-Za-z0-9_]+$/.test(name);
@@ -339,7 +339,7 @@ export async function updateCase(testCase: TestCase, draft: CaseDraft): Promise<
   }
   const removals: string[] = [];
   for (const old of testCase.inputFiles) {
-    if (!draftKeys.includes(old.name.toLowerCase()) && isSimpleText(old.content)) {
+    if (!draftKeys.includes(old.name.toLowerCase()) && isEditableText(old.content)) {
       removals.push(old.name);
     }
   }

@@ -4,12 +4,14 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { isSimpleText, restoreDir, substituteDir } from './bytes';
+import { isEditableText, restoreDir, substituteDir } from './bytes';
 import { RunResult } from './caseRunner';
+import { describeError } from './errors';
 import { readSettings } from './settings';
 import {
   CaseDraft,
   CaseFile,
+  EXPECTED_FILE,
   TestCase,
   checkDraft,
   createCase,
@@ -18,17 +20,20 @@ import {
   renameCase,
   updateCase
 } from './testCase';
-import { SHOW_LIMIT, TestTree, showLimited } from './testTree';
+import { TestTree, showLimited } from './testTree';
 
 export interface CardText {
   text: string;
   simple: boolean;
 }
 
+export type CardMode = 'view' | 'edit' | 'create';
+export type CardStatus = 'passed' | 'failed' | 'unknown';
+
 export interface CardData {
-  mode: 'view' | 'edit' | 'create';
+  mode: CardMode;
   name: string;
-  status: 'passed' | 'failed' | 'unknown';
+  status: CardStatus;
   exitCode: number | null;
   message: string;
   args: string[];
@@ -56,23 +61,11 @@ interface PageMessage {
   draft?: PageDraft;
 }
 
-const EXPECTED_FILE = 'expected.txt';
 const ACCEPT_LABEL = 'Принять';
 const DELETE_LABEL = 'Удалить';
 
-function describeError(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return String(error);
-}
-
-function isEditable(data: Buffer): boolean {
-  return data.length <= SHOW_LIMIT && isSimpleText(data);
-}
-
 function toCardText(data: Buffer): CardText {
-  if (isEditable(data)) {
+  if (isEditableText(data)) {
     return { text: data.toString('utf8'), simple: true };
   }
   return { text: showLimited(data), simple: false };
@@ -84,7 +77,7 @@ export function buildCardData(testCase: TestCase, result: RunResult | undefined)
     files.push({ name: file.name, content: toCardText(file.content) });
   }
 
-  let status: CardData['status'] = 'unknown';
+  let status: CardStatus = 'unknown';
   let exitCode: number | null = null;
   let message = '';
   let actual: CardText | undefined;
@@ -179,7 +172,7 @@ export function buildDraft(page: PageDraft, original: TestCase | undefined): Cas
   }
   if (original !== undefined) {
     for (const file of original.inputFiles) {
-      if (!isEditable(file.content)) {
+      if (!isEditableText(file.content)) {
         inputFiles.push(file);
       }
     }
@@ -243,7 +236,7 @@ export class CasePanel {
   private panel: vscode.WebviewPanel;
   private tree: TestTree;
   private caseName: string;
-  private mode: CardData['mode'];
+  private mode: CardMode;
 
   static show(context: vscode.ExtensionContext, tree: TestTree, caseName: string): void {
     const existing = CasePanel.panels.get(caseName);
@@ -293,7 +286,7 @@ export class CasePanel {
     context: vscode.ExtensionContext,
     tree: TestTree,
     caseName: string,
-    mode: CardData['mode']
+    mode: CardMode
   ) {
     this.tree = tree;
     this.caseName = caseName;

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { showBytes, substituteDir } from './bytes';
+import { SHOW_LIMIT, showBytes, substituteDir } from './bytes';
 import { RunResult, runCase } from './caseRunner';
 import {
   caseNameFromCtest,
@@ -8,6 +8,7 @@ import {
   splitCtestTests,
   suiteNameFromCtest
 } from './ctest';
+import { describeError } from './errors';
 import { ensureExecutable, readSettings, Settings } from './settings';
 import { TestCase, listCases } from './testCase';
 
@@ -16,11 +17,10 @@ export type RefreshListener = () => void;
 
 const GROUP_DATA_ID = 'group:data';
 const GROUP_CPP_ID = 'group:cpp';
-const CASE_PREFIX = 'case:';
+export const CASE_PREFIX = 'case:';
 const CPP_PREFIX = 'cpp:';
 const SUITE_PREFIX = 'suite:';
 const MISSING_PREFIX = 'missing:';
-export const SHOW_LIMIT = 100000;
 
 function rebuildCommand(buildDir: string): string {
   return 'cmake --build ' + buildDir + ' --clean-first';
@@ -36,13 +36,6 @@ export function showLimited(data: Buffer): string {
 
 function toTerminal(text: string): string {
   return text.split('\n').join('\r\n');
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return String(error);
 }
 
 function testLabel(testName: string, suiteName: string): string {

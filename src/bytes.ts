@@ -1,6 +1,7 @@
+export const SHOW_LIMIT = 100000;
 const DIR_MARK = '{dir}';
 
-export function isSimpleText(data: Buffer): boolean {
+function isSimpleText(data: Buffer): boolean {
   if (data.includes(0x00) || data.includes(0x0d)) {
     return false;
   }
@@ -10,6 +11,10 @@ export function isSimpleText(data: Buffer): boolean {
   } catch {
     return false;
   }
+}
+
+export function isEditableText(data: Buffer): boolean {
+  return data.length <= SHOW_LIMIT && isSimpleText(data);
 }
 
 function hex(byte: number): string {

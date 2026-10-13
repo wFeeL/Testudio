@@ -32,16 +32,20 @@ function judge(exitCode: number, stdout: Buffer, expected: Buffer): { passed: bo
   return { passed: true, message: '' };
 }
 
-function spawnFailure(error: NodeJS.ErrnoException, stdout: Buffer, startedAt: number): RunResult {
-  const code = error.code === undefined ? error.message : error.code;
+function makeResult(durationMs: number, stdout: Buffer, message: string): RunResult {
   return {
     passed: false,
     exitCode: null,
     stdout: stdout,
     timedOut: false,
-    message: 'не удалось запустить программу: ' + code,
-    durationMs: Date.now() - startedAt
+    message: message,
+    durationMs: durationMs
   };
+}
+
+function describeSpawnError(error: NodeJS.ErrnoException): string {
+  const code = error.code === undefined ? error.message : error.code;
+  return 'не удалось запустить программу: ' + code;
 }
 
 function killProcessTree(child: ChildProcess): void {
@@ -62,14 +66,7 @@ export async function runCase(
   timeoutSeconds: number
 ): Promise<RunResult> {
   if (testCase.problem !== undefined) {
-    return {
-      passed: false,
-      exitCode: null,
-      stdout: Buffer.alloc(0),
-      timedOut: false,
-      message: testCase.problem,
-      durationMs: 0
-    };
+    return makeResult(0, Buffer.alloc(0), testCase.problem);
   }
 
   const args = buildArgs(testCase);
@@ -81,6 +78,26 @@ export async function runCase(
     let receivedBytes = 0;
     let finished = false;
 
+    let child: ChildProcessByStdio<null, Readable, null>;
+    try {
+      child = spawn(executable, args, {
+        cwd: workDir,
+        detached: true,
+        stdio: ['ignore', 'pipe', 'ignore']
+      });
+    } catch (error) {
+      const message = describeSpawnError(error as NodeJS.ErrnoException);
+      resolve(makeResult(Date.now() - startedAt, Buffer.alloc(0), message));
+      return;
+    }
+
+    const timer = setTimeout(function () {
+      killProcessTree(child);
+      const result = makeResult(Date.now() - startedAt, Buffer.concat(chunks), 'превышено ' + timeoutSeconds + ' с');
+      result.timedOut = true;
+      finish(result);
+    }, timeoutSeconds * 1000);
+
     function finish(result: RunResult): void {
       if (finished) {
         return;
@@ -90,30 +107,6 @@ export async function runCase(
       resolve(result);
     }
 
-    let child: ChildProcessByStdio<null, Readable, Readable>;
-    try {
-      child = spawn(executable, args, {
-        cwd: workDir,
-        detached: true,
-        stdio: ['ignore', 'pipe', 'pipe']
-      });
-    } catch (error) {
-      resolve(spawnFailure(error as NodeJS.ErrnoException, Buffer.alloc(0), startedAt));
-      return;
-    }
-
-    const timer = setTimeout(function () {
-      killProcessTree(child);
-      finish({
-        passed: false,
-        exitCode: null,
-        stdout: Buffer.concat(chunks),
-        timedOut: true,
-        message: 'превышено ' + timeoutSeconds + ' с',
-        durationMs: Date.now() - startedAt
-      });
-    }, timeoutSeconds * 1000);
-
     child.stdout.on('data', function (chunk: Buffer) {
       if (finished) {
         return;
@@ -121,47 +114,32 @@ export async function runCase(
       receivedBytes += chunk.length;
       if (receivedBytes > MAX_OUTPUT_BYTES) {
         killProcessTree(child);
-        finish({
-          passed: false,
-          exitCode: null,
-          stdout: Buffer.concat(chunks),
-          timedOut: false,
-          message: 'вывод больше ' + Math.floor(MAX_OUTPUT_BYTES / (1024 * 1024)) + ' МБ',
-          durationMs: Date.now() - startedAt
-        });
+        const limitMb = Math.floor(MAX_OUTPUT_BYTES / (1024 * 1024));
+        finish(makeResult(Date.now() - startedAt, Buffer.concat(chunks), 'вывод больше ' + limitMb + ' МБ'));
         return;
       }
       chunks.push(chunk);
     });
 
-    child.stderr.resume();
-
     child.on('error', function (error: NodeJS.ErrnoException) {
-      finish(spawnFailure(error, Buffer.concat(chunks), startedAt));
+      finish(makeResult(Date.now() - startedAt, Buffer.concat(chunks), describeSpawnError(error)));
     });
 
     child.on('close', function (code: number | null, signal: NodeJS.Signals | null) {
       const stdout = Buffer.concat(chunks);
       const durationMs = Date.now() - startedAt;
-      if (signal !== null || code === null) {
-        finish({
-          passed: false,
-          exitCode: null,
-          stdout,
-          timedOut: false,
-          message: 'завершена сигналом ' + signal,
-          durationMs
-        });
+      if (code === null) {
+        finish(makeResult(durationMs, stdout, 'завершена сигналом ' + signal));
         return;
       }
       const verdict = judge(code, stdout, expected);
       finish({
         passed: verdict.passed,
         exitCode: code,
-        stdout,
+        stdout: stdout,
         timedOut: false,
         message: verdict.message,
-        durationMs
+        durationMs: durationMs
       });
     });
   });

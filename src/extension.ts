@@ -2,11 +2,10 @@ import * as vscode from 'vscode';
 import { CasePanel } from './casePanel';
 import { buildProject } from './ctest';
 import { chooseExecutable, readSettings } from './settings';
-import { TestTree } from './testTree';
+import { CASE_PREFIX, TestTree } from './testTree';
 
 const REFRESH_DELAY_MS = 300;
 const SHOW_OUTPUT = 'Показать вывод';
-const CASE_PREFIX = 'case:';
 
 async function runBuild(tree: TestTree, output: vscode.OutputChannel): Promise<void> {
   const settings = readSettings();
