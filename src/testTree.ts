@@ -22,6 +22,10 @@ const SUITE_PREFIX = 'suite:';
 const MISSING_PREFIX = 'missing:';
 export const SHOW_LIMIT = 100000;
 
+function rebuildCommand(buildDir: string): string {
+  return 'cmake --build ' + buildDir + ' --clean-first';
+}
+
 export function showLimited(data: Buffer): string {
   if (data.length <= SHOW_LIMIT) {
     return showBytes(data);
@@ -158,7 +162,7 @@ export class TestTree {
       if (testCase.problem !== undefined) {
         item.error = testCase.problem;
       } else if (ctestNames !== undefined && !knownToCtest.has(testCase.name)) {
-        item.error = 'ctest увидит после сборки';
+        item.error = 'ctest увидит после пересборки тестов: ' + rebuildCommand(settings.buildDir);
       }
       dataGroup.children.add(item);
       this.caseItems.set(testCase.name, item);
@@ -171,7 +175,7 @@ export class TestTree {
         label = caseName;
       }
       const item = this.controller.createTestItem(MISSING_PREFIX + testName, label);
-      item.error = 'удалён, пересоберите';
+      item.error = 'удалён, ctest забудет его после пересборки тестов: ' + rebuildCommand(settings.buildDir);
       dataGroup.children.add(item);
     }
 
@@ -334,7 +338,10 @@ export class TestTree {
     } else if (item.id.startsWith(CPP_PREFIX)) {
       await this.runCppTest(item, run, settings);
     } else {
-      run.errored(item, new vscode.TestMessage('кейс удалён, пересоберите проект'));
+      run.errored(
+        item,
+        new vscode.TestMessage('кейс удалён, пересоберите тесты: ' + rebuildCommand(settings.buildDir))
+      );
     }
   }
 
