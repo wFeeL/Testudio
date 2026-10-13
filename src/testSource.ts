@@ -47,6 +47,9 @@ async function listSourceFiles(root: string, buildDir: string): Promise<string[]
       return a.name.localeCompare(b.name);
     });
     for (const entry of entries) {
+      if (files.length >= MAX_FILES) {
+        break;
+      }
       const fullPath = path.join(directory, entry.name);
       if (entry.isDirectory()) {
         if (!isSkippedDirectory(entry.name, fullPath, buildDir)) {
@@ -58,7 +61,7 @@ async function listSourceFiles(root: string, buildDir: string): Promise<string[]
     }
   }
   files.sort();
-  return files.slice(0, MAX_FILES);
+  return files;
 }
 
 async function readSourceText(file: string): Promise<string | undefined> {
