@@ -192,6 +192,14 @@ function makeReadOnly(content) {
   return block;
 }
 
+function showArgs(args) {
+  const lines = [];
+  for (const arg of args) {
+    lines.push(arg.split('\r').join('\\r'));
+  }
+  return lines.join('\n');
+}
+
 function removeFileRow(row) {
   const kept = [];
   for (const other of fileRows) {
@@ -241,9 +249,13 @@ function collectDraft() {
   if (expectedArea !== null) {
     expected = expectedArea.value;
   }
+  let args = undefined;
+  if (argsArea !== null) {
+    args = splitArgs(argsArea.value);
+  }
   return {
     name: nameInput.value,
-    args: splitArgs(argsArea.value),
+    args: args,
     expected: expected,
     files: files
   };
@@ -293,8 +305,13 @@ function renderForm(data) {
 
   root.appendChild(makeElement('h2', '', 'Аргументы'));
   root.appendChild(makeElement('div', 'note', 'по одному на строку, пустая строка недопустима, {dir} подставит папку кейса'));
-  argsArea = makeArea(data.args.join('\n'));
-  root.appendChild(argsArea);
+  if (data.argsEditable) {
+    argsArea = makeArea(data.args.join('\n'));
+    root.appendChild(argsArea);
+  } else {
+    argsArea = null;
+    root.appendChild(makeReadOnly({ text: showArgs(data.args) }));
+  }
 
   root.appendChild(makeElement('h2', '', 'Входные файлы'));
   fileList = makeElement('div', '', '');

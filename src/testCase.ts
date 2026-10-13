@@ -1,4 +1,4 @@
-import { Dirent } from 'fs';
+import { Dirent, Stats } from 'fs';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { isSimpleText } from './bytes';
@@ -12,6 +12,7 @@ export interface TestCase {
   name: string;
   folder: string;
   args: string[];
+  argsEditable: boolean;
   expected: Buffer;
   inputFiles: CaseFile[];
   problem: string | undefined;
@@ -43,6 +44,23 @@ export function formatArgs(args: string[]): string {
   return text;
 }
 
+function canEditArgs(raw: Buffer, args: string[]): boolean {
+  if (raw.includes(0x00)) {
+    return false;
+  }
+  try {
+    new TextDecoder('utf-8', { fatal: true }).decode(raw);
+  } catch {
+    return false;
+  }
+  for (const arg of args) {
+    if (arg.includes('\r')) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function compareNames(a: string, b: string): number {
   if (a < b) {
     return -1;
@@ -57,21 +75,28 @@ export async function readCase(folder: string): Promise<TestCase> {
   const name = path.basename(folder);
   const entries = await fs.readdir(folder, { withFileTypes: true });
   const fileNames: string[] = [];
+  const linkNames: string[] = [];
   for (const entry of entries) {
     if (entry.isFile()) {
       fileNames.push(entry.name);
+    } else if (entry.isSymbolicLink()) {
+      linkNames.push(entry.name);
     }
   }
   fileNames.sort(compareNames);
 
   let problem: string | undefined;
   let args: string[] = [];
+  let argsEditable = true;
   let expected = Buffer.alloc(0);
   const inputFiles: CaseFile[] = [];
 
   if (fileNames.includes(ARGS_FILE)) {
-    const text = await fs.readFile(path.join(folder, ARGS_FILE), 'utf8');
-    args = parseArgs(text);
+    const raw = await fs.readFile(path.join(folder, ARGS_FILE));
+    args = parseArgs(raw.toString('utf8'));
+    argsEditable = canEditArgs(raw, args);
+  } else if (linkNames.includes(ARGS_FILE)) {
+    problem = ARGS_FILE + ' это симлинк: симлинки не поддерживаются';
   } else {
     problem = 'нет args.txt';
   }
@@ -79,7 +104,11 @@ export async function readCase(folder: string): Promise<TestCase> {
   if (fileNames.includes(EXPECTED_FILE)) {
     expected = await fs.readFile(path.join(folder, EXPECTED_FILE));
   } else if (problem === undefined) {
-    problem = 'нет expected.txt';
+    if (linkNames.includes(EXPECTED_FILE)) {
+      problem = EXPECTED_FILE + ' это симлинк: симлинки не поддерживаются';
+    } else {
+      problem = 'нет expected.txt';
+    }
   }
 
   if (problem === undefined && !isValidCaseName(name)) {
@@ -94,7 +123,7 @@ export async function readCase(folder: string): Promise<TestCase> {
     inputFiles.push({ name: fileName, content });
   }
 
-  return { name, folder, args, expected, inputFiles, problem };
+  return { name, folder, args, argsEditable, expected, inputFiles, problem };
 }
 
 export async function listCases(testdataDir: string): Promise<TestCase[]> {
@@ -133,6 +162,7 @@ export function nextCaseNumber(cases: TestCase[]): string {
 export interface CaseDraft {
   name: string;
   args: string[];
+  keepArgs: boolean;
   expected: Buffer;
   inputFiles: CaseFile[];
 }
@@ -154,6 +184,12 @@ function checkFileName(name: string, taken: string[]): string | undefined {
   }
   if (name.includes('/') || name === '.' || name === '..') {
     return 'Недопустимое имя входного файла: ' + name;
+  }
+  if (name.includes('\0')) {
+    return 'Имя входного файла не может содержать нулевой байт.';
+  }
+  if (Buffer.byteLength(name, 'utf8') > 255) {
+    return 'Имя входного файла длиннее 255 байт.';
   }
   const key = name.toLowerCase();
   if (key === ARGS_FILE || key === EXPECTED_FILE) {
@@ -177,12 +213,14 @@ export function checkDraft(
   if (draft.name !== originalName && existingNames.includes(draft.name)) {
     return 'Кейс ' + draft.name + ' уже есть.';
   }
-  for (const arg of draft.args) {
-    if (arg === '') {
-      return 'Пустой аргумент не допускается: уберите пустую строку.';
-    }
-    if (arg.includes('\n') || arg.includes('\r')) {
-      return 'Аргумент не может содержать перевод строки.';
+  if (!draft.keepArgs) {
+    for (const arg of draft.args) {
+      if (arg === '') {
+        return 'Пустой аргумент не допускается: уберите пустую строку.';
+      }
+      if (arg.includes('\n') || arg.includes('\r')) {
+        return 'Аргумент не может содержать перевод строки.';
+      }
     }
   }
   const taken: string[] = [];
@@ -247,6 +285,29 @@ function findFile(files: CaseFile[], name: string): CaseFile | undefined {
   return undefined;
 }
 
+async function lstatOrUndefined(target: string): Promise<Stats | undefined> {
+  try {
+    return await fs.lstat(target);
+  } catch {
+    return undefined;
+  }
+}
+
+async function checkWritable(folder: string, names: string[]): Promise<void> {
+  for (const name of names) {
+    const info = await lstatOrUndefined(path.join(folder, name));
+    if (info === undefined) {
+      continue;
+    }
+    if (info.isSymbolicLink()) {
+      throw new Error('Файл ' + name + ' в папке кейса является симлинком: запись отклонена.');
+    }
+    if (!info.isFile()) {
+      throw new Error('Имя ' + name + ' занято каталогом внутри папки кейса.');
+    }
+  }
+}
+
 export async function updateCase(testCase: TestCase, draft: CaseDraft): Promise<string> {
   const problem = checkDraft(draft, [], testCase.name);
   if (problem !== undefined) {
@@ -257,28 +318,43 @@ export async function updateCase(testCase: TestCase, draft: CaseDraft): Promise<
     throw new Error('Кейс ' + draft.name + ' уже есть.');
   }
 
-  const draftNames: string[] = [];
-  for (const file of draft.inputFiles) {
-    draftNames.push(file.name);
-  }
-  for (const old of testCase.inputFiles) {
-    if (!draftNames.includes(old.name) && isSimpleText(old.content)) {
-      await fs.rm(path.join(testCase.folder, old.name));
-    }
-  }
-
   const everything = testCase.problem !== undefined;
-  if (everything || !sameArgs(draft.args, testCase.args)) {
-    await fs.writeFile(path.join(testCase.folder, ARGS_FILE), formatArgs(draft.args));
+  const writes: CaseFile[] = [];
+  if (!draft.keepArgs && (everything || !sameArgs(draft.args, testCase.args))) {
+    writes.push({ name: ARGS_FILE, content: Buffer.from(formatArgs(draft.args), 'utf8') });
   }
   if (everything || !draft.expected.equals(testCase.expected)) {
-    await fs.writeFile(path.join(testCase.folder, EXPECTED_FILE), draft.expected);
+    writes.push({ name: EXPECTED_FILE, content: draft.expected });
   }
   for (const file of draft.inputFiles) {
     const old = findFile(testCase.inputFiles, file.name);
     if (old === undefined || !old.content.equals(file.content)) {
-      await fs.writeFile(path.join(testCase.folder, file.name), file.content);
+      writes.push(file);
     }
+  }
+
+  const draftKeys: string[] = [];
+  for (const file of draft.inputFiles) {
+    draftKeys.push(file.name.toLowerCase());
+  }
+  const removals: string[] = [];
+  for (const old of testCase.inputFiles) {
+    if (!draftKeys.includes(old.name.toLowerCase()) && isSimpleText(old.content)) {
+      removals.push(old.name);
+    }
+  }
+
+  const writeNames: string[] = [];
+  for (const file of writes) {
+    writeNames.push(file.name);
+  }
+  await checkWritable(testCase.folder, writeNames);
+
+  for (const file of writes) {
+    await fs.writeFile(path.join(testCase.folder, file.name), file.content);
+  }
+  for (const name of removals) {
+    await fs.rm(path.join(testCase.folder, name));
   }
 
   if (renamed) {

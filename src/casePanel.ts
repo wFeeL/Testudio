@@ -32,6 +32,7 @@ export interface CardData {
   exitCode: number | null;
   message: string;
   args: string[];
+  argsEditable: boolean;
   files: { name: string; content: CardText }[];
   expected: CardText;
   actual: CardText | undefined;
@@ -44,7 +45,7 @@ interface PageFile {
 
 interface PageDraft {
   name: string;
-  args: string[];
+  args: string[] | undefined;
   expected: string | undefined;
   files: PageFile[];
 }
@@ -109,6 +110,7 @@ export function buildCardData(testCase: TestCase, result: RunResult | undefined)
     exitCode: exitCode,
     message: message,
     args: testCase.args,
+    argsEditable: testCase.argsEditable,
     files: files,
     expected: toCardText(substituteDir(testCase.expected, testCase.folder)),
     actual: actual
@@ -127,6 +129,7 @@ export function buildFormData(testCase: TestCase): CardData {
     exitCode: null,
     message: '',
     args: testCase.args,
+    argsEditable: testCase.argsEditable,
     files: files,
     expected: toCardText(testCase.expected),
     actual: undefined
@@ -141,6 +144,7 @@ export function buildNewData(name: string): CardData {
     exitCode: null,
     message: '',
     args: [],
+    argsEditable: true,
     files: [],
     expected: { text: '', simple: true },
     actual: undefined
@@ -158,6 +162,14 @@ export function buildDraft(page: PageDraft, original: TestCase | undefined): Cas
   } else if (original !== undefined) {
     expected = original.expected;
   }
+  let args: string[] = [];
+  let keepArgs = false;
+  if (page.args !== undefined) {
+    args = page.args;
+  } else if (original !== undefined) {
+    args = original.args;
+    keepArgs = true;
+  }
   if (original !== undefined) {
     for (const file of original.inputFiles) {
       if (!isEditable(file.content)) {
@@ -165,7 +177,41 @@ export function buildDraft(page: PageDraft, original: TestCase | undefined): Cas
       }
     }
   }
-  return { name: page.name, args: page.args, expected: expected, inputFiles: inputFiles };
+  return { name: page.name, args: args, keepArgs: keepArgs, expected: expected, inputFiles: inputFiles };
+}
+
+function isValidPageDraft(page: PageDraft): boolean {
+  if (typeof page !== 'object' || page === null) {
+    return false;
+  }
+  if (typeof page.name !== 'string') {
+    return false;
+  }
+  if (page.expected !== undefined && typeof page.expected !== 'string') {
+    return false;
+  }
+  if (page.args !== undefined) {
+    if (!Array.isArray(page.args)) {
+      return false;
+    }
+    for (const arg of page.args) {
+      if (typeof arg !== 'string') {
+        return false;
+      }
+    }
+  }
+  if (!Array.isArray(page.files)) {
+    return false;
+  }
+  for (const file of page.files) {
+    if (typeof file !== 'object' || file === null) {
+      return false;
+    }
+    if (typeof file.name !== 'string' || typeof file.content !== 'string') {
+      return false;
+    }
+  }
+  return true;
 }
 
 function knownCases(tree: TestTree): TestCase[] {
@@ -435,7 +481,13 @@ export class CasePanel {
       prompt: 'Новое имя кейса',
       value: oldName,
       validateInput: function (value: string): string | undefined {
-        const draft: CaseDraft = { name: value, args: [], expected: Buffer.alloc(0), inputFiles: [] };
+        const draft: CaseDraft = {
+          name: value,
+          args: [],
+          keepArgs: false,
+          expected: Buffer.alloc(0),
+          inputFiles: []
+        };
         return checkDraft(draft, existing, oldName);
       }
     });
@@ -469,6 +521,13 @@ export class CasePanel {
 
   private async saveForm(page: PageDraft | undefined): Promise<void> {
     if (page === undefined) {
+      return;
+    }
+    if (this.mode !== 'edit' && this.mode !== 'create') {
+      return;
+    }
+    if (!isValidPageDraft(page)) {
+      this.sendError('Форма отправила неверные данные: закройте карточку и откройте её заново.');
       return;
     }
     let original: TestCase | undefined;
