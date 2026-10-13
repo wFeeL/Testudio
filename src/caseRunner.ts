@@ -44,6 +44,9 @@ function makeResult(durationMs: number, stdout: Buffer, message: string): RunRes
 }
 
 function describeSpawnError(error: NodeJS.ErrnoException): string {
+  if (error.code === 'EACCES') {
+    return 'не удалось запустить программу: у файла нет права на запуск';
+  }
   const code = error.code === undefined ? error.message : error.code;
   return 'не удалось запустить программу: ' + code;
 }

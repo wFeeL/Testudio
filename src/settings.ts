@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { describeError } from './errors';
 
 export interface Settings {
   workspaceRoot: string;
@@ -13,6 +14,7 @@ export interface Settings {
 const DEFAULT_TESTDATA = 'tests/testdata';
 const DEFAULT_BUILD = 'build';
 const DEFAULT_TIMEOUT = 10;
+const CHOOSE_ANOTHER = 'Выбрать другой файл';
 
 function readText(config: vscode.WorkspaceConfiguration, key: string, fallback: string): string {
   const value = config.get<string>(key, fallback).trim();
@@ -67,23 +69,61 @@ export function readSettings(): Settings | undefined {
   };
 }
 
+async function checkExecutable(filePath: string): Promise<string | undefined> {
+  let info: fs.Stats;
+  try {
+    info = await fs.promises.stat(filePath);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') {
+      return 'Файл не найден: ' + filePath;
+    }
+    return 'Не удалось проверить файл ' + filePath + ': ' + describeError(error);
+  }
+  if (info.isDirectory()) {
+    return 'Выбрана папка, а не программа: ' + filePath;
+  }
+  if (!info.isFile()) {
+    return 'Выбран не обычный файл, а программа должна быть файлом: ' + filePath;
+  }
+  try {
+    await fs.promises.access(filePath, fs.constants.X_OK);
+  } catch {
+    return 'У файла нет права на запуск: ' + filePath + '. Выдайте его командой chmod +x или выберите другой файл.';
+  }
+  return undefined;
+}
+
+async function askAnotherFile(problem: string): Promise<boolean> {
+  const choice = await vscode.window.showWarningMessage(problem, { modal: true }, CHOOSE_ANOTHER);
+  return choice === CHOOSE_ANOTHER;
+}
+
 export async function chooseExecutable(): Promise<string | undefined> {
   const workspaceRoot = getWorkspaceRoot();
   if (workspaceRoot === undefined) {
     return undefined;
   }
-  const picked = await vscode.window.showOpenDialog({
-    canSelectFiles: true,
-    canSelectFolders: false,
-    canSelectMany: false,
-    defaultUri: vscode.Uri.file(workspaceRoot),
-    openLabel: 'Выбрать',
-    title: 'Выберите тестируемую программу'
-  });
-  if (picked === undefined || picked.length === 0) {
-    return undefined;
+  let chosen: string | undefined;
+  while (chosen === undefined) {
+    const picked = await vscode.window.showOpenDialog({
+      canSelectFiles: true,
+      canSelectFolders: false,
+      canSelectMany: false,
+      defaultUri: vscode.Uri.file(workspaceRoot),
+      openLabel: 'Выбрать',
+      title: 'Выберите тестируемую программу'
+    });
+    if (picked === undefined || picked.length === 0) {
+      return undefined;
+    }
+    const problem = await checkExecutable(picked[0].fsPath);
+    if (problem === undefined) {
+      chosen = picked[0].fsPath;
+    } else if (!(await askAnotherFile(problem))) {
+      return undefined;
+    }
   }
-  const chosen = picked[0].fsPath;
   let stored = chosen;
   if (isInside(workspaceRoot, chosen)) {
     stored = path.relative(workspaceRoot, chosen);
@@ -94,8 +134,15 @@ export async function chooseExecutable(): Promise<string | undefined> {
 }
 
 export async function ensureExecutable(settings: Settings): Promise<string | undefined> {
-  if (settings.executablePath !== undefined && fs.existsSync(settings.executablePath)) {
-    return settings.executablePath;
+  const configured = settings.executablePath;
+  if (configured !== undefined && fs.existsSync(configured)) {
+    const problem = await checkExecutable(configured);
+    if (problem === undefined) {
+      return configured;
+    }
+    if (!(await askAnotherFile(problem))) {
+      return undefined;
+    }
   }
   return chooseExecutable();
 }
