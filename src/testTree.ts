@@ -19,7 +19,7 @@ const CASE_PREFIX = 'case:';
 const CPP_PREFIX = 'cpp:';
 const SUITE_PREFIX = 'suite:';
 const MISSING_PREFIX = 'missing:';
-const SHOW_LIMIT = 100000;
+export const SHOW_LIMIT = 100000;
 
 export function showLimited(data: Buffer): string {
   if (data.length <= SHOW_LIMIT) {

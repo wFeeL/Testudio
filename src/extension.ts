@@ -1,10 +1,12 @@
 import * as vscode from 'vscode';
+import { CasePanel } from './casePanel';
 import { buildProject } from './ctest';
 import { chooseExecutable, readSettings } from './settings';
 import { TestTree } from './testTree';
 
 const REFRESH_DELAY_MS = 300;
 const SHOW_OUTPUT = 'Показать вывод';
+const CASE_PREFIX = 'case:';
 
 async function runBuild(tree: TestTree, output: vscode.OutputChannel): Promise<void> {
   const settings = readSettings();
@@ -49,6 +51,36 @@ async function runSelectExecutable(): Promise<void> {
   if (chosen !== undefined) {
     vscode.window.showInformationMessage('Тестируемая программа: ' + chosen);
   }
+}
+
+function caseNameFromItem(item: vscode.TestItem | undefined): string | undefined {
+  if (!item || typeof item.id !== 'string') {
+    return undefined;
+  }
+  if (!item.id.startsWith(CASE_PREFIX)) {
+    return undefined;
+  }
+  return item.id.slice(CASE_PREFIX.length);
+}
+
+async function runOpenCase(
+  context: vscode.ExtensionContext,
+  tree: TestTree,
+  item: vscode.TestItem | undefined
+): Promise<void> {
+  let name = caseNameFromItem(item);
+  if (name === undefined) {
+    const names = tree.getCaseNames();
+    if (names.length === 0) {
+      vscode.window.showInformationMessage('Кейсов не найдено: проверьте настройку testudio.testdataPath.');
+      return;
+    }
+    name = await vscode.window.showQuickPick(names, { placeHolder: 'Выберите кейс' });
+    if (name === undefined) {
+      return;
+    }
+  }
+  CasePanel.show(context, tree, name);
 }
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -99,6 +131,11 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('testudio.selectExecutable', function (): Promise<void> {
       return runSelectExecutable();
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('testudio.openCase', function (item?: vscode.TestItem): Promise<void> {
+      return runOpenCase(context, tree, item);
     })
   );
   context.subscriptions.push(
