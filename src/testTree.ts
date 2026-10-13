@@ -27,6 +27,17 @@ function rebuildCommand(buildDir: string): string {
   return 'cmake --build ' + buildDir + ' --clean-first';
 }
 
+function mismatchMessage(absent: number, removed: number, buildDir: string): string {
+  const parts: string[] = [];
+  if (absent > 0) {
+    parts.push('ctest не видит кейсов: ' + absent);
+  }
+  if (removed > 0) {
+    parts.push('ctest помнит удалённых кейсов: ' + removed);
+  }
+  return parts.join('; ') + '. Чтобы это исправить, выполните: ' + rebuildCommand(buildDir);
+}
+
 export function showLimited(data: Buffer): string {
   if (data.length <= SHOW_LIMIT) {
     return showBytes(data);
@@ -72,6 +83,7 @@ export class TestTree {
   private listener: ResultListener | undefined;
   private refreshListener: RefreshListener | undefined;
   private ctestMessageShown: boolean = false;
+  private shownMismatch: string = '';
   private refreshRunning: Promise<void> | undefined;
   private refreshQueued: boolean = false;
 
@@ -149,6 +161,7 @@ export class TestTree {
     this.cases.clear();
     this.caseItems.clear();
     const dataGroup = this.controller.createTestItem(GROUP_DATA_ID, 'Кейсы testdata');
+    const absentNames: string[] = [];
 
     for (const testCase of cases) {
       this.cases.set(testCase.name, testCase);
@@ -160,7 +173,8 @@ export class TestTree {
       if (testCase.problem !== undefined) {
         item.error = testCase.problem;
       } else if (ctestNames !== undefined && !knownToCtest.has(testCase.name)) {
-        item.error = 'ctest увидит после пересборки тестов: ' + rebuildCommand(settings.buildDir);
+        item.description = 'нет в ctest';
+        absentNames.push(testCase.name);
       }
       dataGroup.children.add(item);
       this.caseItems.set(testCase.name, item);
@@ -173,9 +187,11 @@ export class TestTree {
         label = caseName;
       }
       const item = this.controller.createTestItem(MISSING_PREFIX + testName, label);
-      item.error = 'удалён, ctest забудет его после пересборки тестов: ' + rebuildCommand(settings.buildDir);
+      item.description = 'удалён, есть в ctest';
       dataGroup.children.add(item);
     }
+
+    this.reportMismatch(absentNames, missingCaseTests, settings.buildDir);
 
     for (const name of this.results.keys()) {
       if (!this.cases.has(name)) {
@@ -240,6 +256,19 @@ export class TestTree {
 
   forgetResult(name: string): void {
     this.results.delete(name);
+  }
+
+  private reportMismatch(absentNames: string[], missingTests: string[], buildDir: string): void {
+    if (absentNames.length === 0 && missingTests.length === 0) {
+      this.shownMismatch = '';
+      return;
+    }
+    const key = buildDir + '|' + absentNames.join(',') + '|' + missingTests.join(',');
+    if (key === this.shownMismatch) {
+      return;
+    }
+    this.shownMismatch = key;
+    vscode.window.showInformationMessage(mismatchMessage(absentNames.length, missingTests.length, buildDir));
   }
 
   private warnCtestUnavailable(): void {

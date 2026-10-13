@@ -106,6 +106,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   let timer: NodeJS.Timeout | undefined;
   let watcher: vscode.FileSystemWatcher | undefined;
+  let buildWatcher: vscode.FileSystemWatcher | undefined;
 
   function scheduleRefresh(): void {
     if (timer !== undefined) {
@@ -122,6 +123,10 @@ export function activate(context: vscode.ExtensionContext): void {
       watcher.dispose();
       watcher = undefined;
     }
+    if (buildWatcher !== undefined) {
+      buildWatcher.dispose();
+      buildWatcher = undefined;
+    }
     const settings = readSettings();
     if (settings === undefined) {
       return;
@@ -131,6 +136,15 @@ export function activate(context: vscode.ExtensionContext): void {
     watcher.onDidCreate(scheduleRefresh);
     watcher.onDidChange(scheduleRefresh);
     watcher.onDidDelete(scheduleRefresh);
+
+    const buildPattern = new vscode.RelativePattern(
+      settings.buildDir,
+      '**/{CTestTestfile,*_tests,*_include}.cmake'
+    );
+    buildWatcher = vscode.workspace.createFileSystemWatcher(buildPattern);
+    buildWatcher.onDidCreate(scheduleRefresh);
+    buildWatcher.onDidChange(scheduleRefresh);
+    buildWatcher.onDidDelete(scheduleRefresh);
   }
 
   controller.refreshHandler = function (): Promise<void> {
@@ -180,6 +194,9 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       if (watcher !== undefined) {
         watcher.dispose();
+      }
+      if (buildWatcher !== undefined) {
+        buildWatcher.dispose();
       }
     }
   });
