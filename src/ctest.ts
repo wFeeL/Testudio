@@ -88,12 +88,28 @@ export async function listCtestTests(buildDir: string): Promise<string[] | undef
   }
 }
 
+const PARAM_COMMENT = '  # ';
+
+export function stripCtestComment(testName: string): string {
+  const index = testName.indexOf(PARAM_COMMENT);
+  if (index < 0) {
+    return testName;
+  }
+  return testName.slice(0, index);
+}
+
 export function caseNameFromCtest(testName: string): string | undefined {
-  const slash = testName.lastIndexOf('/');
+  const shortName = stripCtestComment(testName);
+  const slash = shortName.lastIndexOf('/');
   if (slash < 0) {
     return undefined;
   }
-  return testName.slice(slash + 1);
+  return shortName.slice(slash + 1);
+}
+
+function prefixFromCtest(testName: string): string {
+  const shortName = stripCtestComment(testName);
+  return shortName.slice(0, shortName.lastIndexOf('/'));
 }
 
 export function splitCtestTests(testNames: string[], caseNames: string[]): CtestSplit {
@@ -103,7 +119,7 @@ export function splitCtestTests(testNames: string[], caseNames: string[]): Ctest
   for (const testName of testNames) {
     const caseName = caseNameFromCtest(testName);
     if (caseName !== undefined && known.has(caseName)) {
-      prefixes.add(testName.slice(0, testName.lastIndexOf('/')));
+      prefixes.add(prefixFromCtest(testName));
     }
   }
 
@@ -115,7 +131,7 @@ export function splitCtestTests(testNames: string[], caseNames: string[]): Ctest
     const caseName = caseNameFromCtest(testName);
     if (caseName !== undefined && known.has(caseName)) {
       caseTests.push(testName);
-    } else if (caseName !== undefined && prefixes.has(testName.slice(0, testName.lastIndexOf('/')))) {
+    } else if (caseName !== undefined && prefixes.has(prefixFromCtest(testName))) {
       missingCaseTests.push(testName);
     } else {
       cppTests.push(testName);
@@ -126,11 +142,12 @@ export function splitCtestTests(testNames: string[], caseNames: string[]): Ctest
 }
 
 export function suiteNameFromCtest(testName: string): string {
-  const dot = testName.indexOf('.');
+  const shortName = stripCtestComment(testName);
+  const dot = shortName.indexOf('.');
   if (dot < 0) {
-    return testName;
+    return shortName;
   }
-  return testName.slice(0, dot);
+  return shortName.slice(0, dot);
 }
 
 export function escapeRegex(text: string): string {

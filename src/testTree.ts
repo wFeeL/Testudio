@@ -7,6 +7,7 @@ import {
   listCtestTests,
   runCtestTest,
   splitCtestTests,
+  stripCtestComment,
   suiteNameFromCtest
 } from './ctest';
 import { describeError } from './errors';
@@ -290,7 +291,7 @@ export class TestTree {
         suites.set(suiteName, suiteItem);
         group.children.add(suiteItem);
       }
-      const label = testLabel(testName, suiteName);
+      const label = testLabel(stripCtestComment(testName), suiteName);
       suiteItem.children.add(this.controller.createTestItem(CPP_PREFIX + testName, label));
     }
     return group;
