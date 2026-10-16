@@ -5,3 +5,4 @@ eslint.config.mjs
 **/*.map
 node_modules/
 .gitignore
+images/**
